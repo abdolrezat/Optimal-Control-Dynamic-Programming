@@ -60,10 +60,12 @@ classdef Dynamic_Solver
             % Increase K by 1
             for k=1:obj.N-1
                 tic
-                for i=1:obj.dx^2 % Set xi(N-k) == starting quantized value by making i = 1
+                for i=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
                     % set COSMIN to a large positive number
                     X1 = X1_mesh(i);
-                    X2 = X2_mesh(i);
+                    
+                    for ii=obj.dx
+                    X2 = X2_mesh(ii);
                     
                     COSTMIN = 1000000; %set to a finite large number to increase performance
                     UMIN = [];
@@ -104,12 +106,16 @@ classdef Dynamic_Solver
                         
                     end%end of for loop when j = C
                     
-                    [i_x1,i_x2] = ind2sub(size(X1_mesh),i);
+                    
+                    %[i_x1,i_x2] = ind2sub(size(X1_mesh),i); % used for 2D
+                    %X's (e.g. X1_mesh(i){mxm}
                     % store UMIN in UOPT(N-k,I)
-                    obj.u_star(i_x1,i_x2,obj.N-k) = UMIN;
+                    obj.u_star(i,ii,obj.N-k) = UMIN;
                     % store COSMIN in COST(N-k,i)
-                    obj.J_star(i_x1,i_x2,obj.N-k) = COSTMIN;
-                end    %end of parfor loop when i = S
+                    obj.J_star(i,ii,obj.N-k) = COSTMIN;
+                    
+                    end  %end of for loop for X2 1:dx
+                end    %end of for loop when i = S
                 fprintf('step %d - %f seconds\n', k, toc)
             end %end of for loop when k = N
                       
