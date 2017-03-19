@@ -31,13 +31,13 @@ classdef Dynamic_Solver
             obj.A = [0.9974, 0.0539; -0.1078, 1.1591];
             obj.B = [0.0013; 0.0539];
             obj.R = 0.05;
-            obj.N = 5;
+            obj.N = 50;
             obj.S = 2;
             obj.C = 1;
             obj.X = zeros(obj.S,obj.N);
             obj.U = zeros(obj.C,obj.N);
-            obj.dx = 100;
-            obj.du = 100;
+            obj.dx = 50;
+            obj.du = 50;
             obj.x_max = 8;
             obj.x_min = -8;
             obj.u_max = 8;
@@ -48,6 +48,7 @@ classdef Dynamic_Solver
         end
         
         function obj = run(obj)
+            try
             % K = 0
             % Calculate and store J*NN = h(xi(N)) for all x(N)
             s_r = linspace(obj.x_min,obj.x_max,obj.dx);
@@ -61,12 +62,11 @@ classdef Dynamic_Solver
             for k=1:obj.N-1
                 tic
                 for i=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
+                    for ii=1:obj.dx
+                    X1 = X1_mesh(i,ii);
+                    X2 = X2_mesh(i,ii);
+                    
                     % set COSMIN to a large positive number
-                    X1 = X1_mesh(i);
-                    
-                    for ii=obj.dx
-                    X2 = X2_mesh(ii);
-                    
                     COSTMIN = 1000000; %set to a finite large number to increase performance
                     UMIN = [];
                     % set ui(N-k) to the starting quantized value by making j = 1
@@ -118,7 +118,9 @@ classdef Dynamic_Solver
                 end    %end of for loop when i = S
                 fprintf('step %d - %f seconds\n', k, toc)
             end %end of for loop when k = N
-                      
+            catch e
+                disp(e)
+            end        
         end
         
         function X1_new = a_D(X1,X2,Ui)
@@ -136,6 +138,7 @@ classdef Dynamic_Solver
             %Print Optimal controls, UOPT(N-k,I) and min costs, COST(N-k,I)
             %for all quantized state points (I = 1,2,..,S) and all stages
             % K = 1:N
+            
         end
     end
 end
