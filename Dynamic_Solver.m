@@ -189,7 +189,8 @@ classdef Dynamic_Solver
             xlabel('stage - k')
             ylabel('state and inputs')
             legend('X1', 'X2', 'u*');
-            keyboard;
+            grid on
+            xlim([v(1) v(end)])
             
         end
     end
