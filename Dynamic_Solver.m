@@ -5,15 +5,14 @@ classdef Dynamic_Solver
     properties
         A
         B
-        J
         H
         R
         Q
         N %Number of stages
         S %Number of state values
         C %Number of control values
-        X
-        U
+        %X
+        %U
         x_min
         x_max
         u_min
@@ -22,29 +21,28 @@ classdef Dynamic_Solver
         du
         u_star
         J_star
+        X1_mesh
+        X2_mesh
     end
     
     methods
         
         function obj = Dynamic_Solver()
-            obj.Q = [0.25, 0; 0, 0.25];
+            obj.Q = [0.25, 0; 0, 0.05];
             obj.A = [0.9974, 0.0539; -0.1078, 1.1591];
             obj.B = [0.0013; 0.0539];
             obj.R = 0.05;
-            obj.N = 50;
+            obj.N = 130;
             obj.S = 2;
             obj.C = 1;
-            obj.X = zeros(obj.S,obj.N);
-            obj.U = zeros(obj.C,obj.N);
-            obj.dx = 50;
-            obj.du = 50;
-            obj.x_max = 8;
-            obj.x_min = -8;
-            obj.u_max = 8;
-            obj.u_min = -12;
-            obj.X(:,obj.N) = [0; 0];
-
-            
+            %obj.X = zeros(obj.S,obj.N);
+            %obj.U = zeros(obj.C,obj.N);
+            obj.dx = 35;
+            obj.du = 100;
+            obj.x_max = 3;
+            obj.x_min = -2.5;
+            obj.u_max = 10;
+            obj.u_min = -40;
         end
         
         function obj = run(obj)
@@ -52,28 +50,30 @@ classdef Dynamic_Solver
             % K = 0
             % Calculate and store J*NN = h(xi(N)) for all x(N)
             s_r = linspace(obj.x_min,obj.x_max,obj.dx);
-            c_r = linspace(obj.u_min,obj.u_max,obj.du);
+            [obj.X1_mesh, obj.X2_mesh] = ndgrid(s_r, s_r);
             
-            [X1_mesh, X2_mesh] = ndgrid(s_r, s_r);
-            U_mesh = linspace(obj.u_max, obj.u_min,obj.du);
-            obj.J_star = zeros([size(X1_mesh),obj.N]);
+            U_mesh = linspace(obj.u_min, obj.u_max, obj.du);
+            obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
             obj.u_star = obj.J_star;
-            % Increase K by 1
+                        % Increase K by 1
             for k=1:obj.N-1
                 tic
                 for i=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
                     for ii=1:obj.dx
-                    X1 = X1_mesh(i,ii);
-                    X2 = X2_mesh(i,ii);
+                    X1 = obj.X1_mesh(i,ii);
+                    X2 = obj.X2_mesh(i,ii);
                     
                     % set COSMIN to a large positive number
-                    COSTMIN = 1000000; %set to a finite large number to increase performance
+                    COSTMIN = 10000; %set to a finite large number to increase performance
                     UMIN = [];
                     % set ui(N-k) to the starting quantized value by making j = 1
+                    
                     for j=1:obj.du
                         Ui = U_mesh(j);
+                        
                         % Calculate the value of x(i,j)(N-k +1) = a_D(xi(N -k),uj(N-k))
                         X_next = obj.A*[X1;X2] + obj.B*Ui;
+
                         % Use this value of x(i,j)(N-k+1) to select the appropriate
                         % stored value of J*{(N-k),N} (x(i,j)(N-k+1))
                         % if x(i,j)(N-k+1) is not a grid value, interpolation is
@@ -83,8 +83,9 @@ classdef Dynamic_Solver
                         %J_opt_next = interpn(X1_mesh, X2_mesh,obj.J_star(:,:,obj.N-k+1),...
                         %    X_next(1),X_next(2));
                         %
-                        %using gridded
-                        F = griddedInterpolant(X1_mesh, X2_mesh,...
+                        %using griddedInterpolant
+                        
+                        F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
                                                 obj.J_star(:,:,obj.N-k+1),'linear');
                         J_opt_next = F(X_next(1),X_next(2));
                         
@@ -102,6 +103,16 @@ classdef Dynamic_Solver
                         if(C_star < COSTMIN)
                             COSTMIN = C_star;
                             UMIN = Ui;
+                            
+                            % debug start 
+                            %-- check u limit -- disable for performance
+                            %improvement
+                            %if(UMIN == obj.u_max) 
+                            %    warning('U control reached limit x1 = %f, x2 = %f, k = %d', X1, X2, k);
+                            %end
+                            %-- save X_next records
+                            %X_N(i,ii) = sum(X_next);
+                            % debug end
                         end
                         
                     end%end of for loop when j = C
@@ -114,17 +125,20 @@ classdef Dynamic_Solver
                     % store COSMIN in COST(N-k,i)
                     obj.J_star(i,ii,obj.N-k) = COSTMIN;
                     
-                    end  %end of for loop for X2 1:dx
-                end    %end of for loop when i = S
+                    end  %end of innerX2 for loop ii = 1:dx
+                    
+                end    %end of outerX1 for loop when i = dx
+                
                 fprintf('step %d - %f seconds\n', k, toc)
             end %end of for loop when k = N
+            
             catch e
-                disp(e)
+                e.throw
             end        
         end
         
         function X1_new = a_D(X1,X2,Ui)
-            keyboard;
+            %keyboard;
              X1_new = obj.A*[X1;X2] + obj.B*Ui;
 %             X1_new = [A(1).*X1+ A(3).*X2 + B(1).*Ui; A(2).*X1+ A(4).*X2 + B(2).*Ui];
         end
@@ -133,11 +147,49 @@ classdef Dynamic_Solver
            J = [X1;X2]' * Q * [X1;X2] + Ui' * R * Ui;
         end
         
-        function get_optimal_path(X)
-            %To be Completed
-            %Print Optimal controls, UOPT(N-k,I) and min costs, COST(N-k,I)
+        function get_optimal_path(obj, X0)
+            if nargin < 2
+            X0 = [2; 1]
+            end
+            %Store Optimal controls, UOPT(N-k,I) and min costs, COST(N-k,I)
             %for all quantized state points (I = 1,2,..,S) and all stages
             % K = 1:N
+            plot_k_max = obj.N;
+            v = 1:plot_k_max;
+            X = zeros(obj.S,obj.N);
+            U = zeros(obj.C,obj.N);
+            J = U;
+            X(:,1) = X0;
+            for k=1:obj.N-1
+                
+                Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                    obj.u_star(:,:,k),'linear');
+                U(k) = Fu(X(1,k),X(2,k));
+                
+                Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                    obj.J_star(:,:,k),'linear');
+                J(k) = Fj(X(1,k),X(2,k));
+                
+                X(:,k+1) = obj.A*X(:,k) + obj.B*U(k);
+            end
+                k = k+1;
+                Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                    obj.u_star(:,:,k),'linear');
+                U(k) = Fu(X(1,k),X(2,k));
+                
+                Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                    obj.J_star(:,:,k),'linear');
+                J(k) = Fj(X(1,k),X(2,k));
+            %Print Optimal Controls
+            plot(v,X(1,v))
+            hold on
+            plot(v,X(2,v),'r')
+            plot(v,U(v),'--')
+            title('Optimal control for initial state X0')
+            xlabel('stage - k')
+            ylabel('state and inputs')
+            legend('X1', 'X2', 'u*');
+            keyboard;
             
         end
     end
