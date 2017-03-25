@@ -58,21 +58,21 @@ classdef Dynamic_Solver
                         % Increase K by 1
             for k=1:obj.N-1
                 tic
-                for i=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
-                    for ii=1:obj.dx
-                    X1 = obj.X1_mesh(i,ii);
-                    X2 = obj.X2_mesh(i,ii);
+                for i1=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
+                    for i2=1:obj.dx
+                    X1 = obj.X1_mesh(i1,i2);
+                    X2 = obj.X2_mesh(i1,i2);
                     
                     % set COSMIN to a large positive number
                     COSTMIN = 10000; %set to a finite large number to increase performance
                     UMIN = [];
                     % set ui(N-k) to the starting quantized value by making j = 1
                     
-                    for j=1:obj.du
-                        Ui = U_mesh(j);
+                    for jj=1:obj.du
+                        Ui = U_mesh(jj);
                         
                         % Calculate the value of x(i,j)(N-k +1) = a_D(xi(N -k),uj(N-k))
-                        X_next = obj.A*[X1;X2] + obj.B*Ui;
+                        X_next = obj.a_D(X1,X2,Ui,obj.A,obj.B);
 
                         % Use this value of x(i,j)(N-k+1) to select the appropriate
                         % stored value of J*{(N-k),N} (x(i,j)(N-k+1))
@@ -96,8 +96,11 @@ classdef Dynamic_Solver
                         %C_star = obj.g_D(X1_mesh(i),X2_mesh(i),U_mesh(j),obj.Q,obj.R) ... +
                         %         + J_opt_next ;
                         %
-                         C_star = [X1;X2]' * obj.Q * [X1;X2] ...
-                             + Ui' * obj.R * Ui + J_opt_next ;
+                        % C_star = [X1;X2]' * obj.Q * [X1;X2] ...
+                        %     + Ui' * obj.R * Ui + J_opt_next ;
+                        
+                        C_star = obj.g_D(X1,X2,Ui,obj.Q,obj.R) + J_opt_next ;
+
                         % if C* just calculated less than COSMIN store this value as
                         % COSMIN and store the value uj(N-k) in UMIN
                         if(C_star < COSTMIN)
@@ -121,9 +124,9 @@ classdef Dynamic_Solver
                     %[i_x1,i_x2] = ind2sub(size(X1_mesh),i); % used for 2D
                     %X's (e.g. X1_mesh(i){mxm}
                     % store UMIN in UOPT(N-k,I)
-                    obj.u_star(i,ii,obj.N-k) = UMIN;
+                    obj.u_star(i1,i2,obj.N-k) = UMIN;
                     % store COSMIN in COST(N-k,i)
-                    obj.J_star(i,ii,obj.N-k) = COSTMIN;
+                    obj.J_star(i1,i2,obj.N-k) = COSTMIN;
                     
                     end  %end of innerX2 for loop ii = 1:dx
                     
@@ -136,16 +139,7 @@ classdef Dynamic_Solver
                 e.throw
             end        
         end
-        
-        function X1_new = a_D(X1,X2,Ui)
-            %keyboard;
-             X1_new = obj.A*[X1;X2] + obj.B*Ui;
-%             X1_new = [A(1).*X1+ A(3).*X2 + B(1).*Ui; A(2).*X1+ A(4).*X2 + B(2).*Ui];
-        end
-        
-        function J = g_D(X1,X2,Ui,Q,R)
-           J = [X1;X2]' * Q * [X1;X2] + Ui' * R * Ui;
-        end
+     
         
         function get_optimal_path(obj, X0)
             if nargin < 2
@@ -192,6 +186,20 @@ classdef Dynamic_Solver
             grid on
             xlim([v(1) v(end)])
             
+        end
+        
+    end
+    
+    methods (Static)
+           
+        function X1_new = a_D(X1,X2,Ui,A,B)
+            %keyboard;
+             X1_new = A*[X1;X2] + B*Ui;
+%             X1_new = [A(1).*X1+ A(3).*X2 + B(1).*Ui; A(2).*X1+ A(4).*X2 + B(2).*Ui];
+        end
+        
+        function J = g_D(X1,X2,Ui,Q,R)
+           J = [X1;X2]' * Q * [X1;X2] + Ui' * R * Ui;
         end
     end
 end
