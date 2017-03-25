@@ -163,16 +163,20 @@ classdef Dynamic_Solver
                     obj.J_star(:,:,k),'linear');
                 J(k) = Fj(X(1,k),X(2,k));
                 
-                X(:,k+1) = obj.A*X(:,k) + obj.B*U(k);
+                X(:,k+1) = a_D(obj,X(1,k),X(2,k),U(k));
+               % X(:,k+1) = obj.A*X(:,k) + obj.B*U(k);
             end
                 k = k+1;
+                %-- Optimal Control Input u*
                 Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
                     obj.u_star(:,:,k),'linear');
                 U(k) = Fu(X(1,k),X(2,k));
+               
+                %-- Commented -- Cost of path
+                %Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                %   obj.J_star(:,:,k),'linear');
+                %J(k) = Fj(X(1,k),X(2,k));
                 
-                Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                    obj.J_star(:,:,k),'linear');
-                J(k) = Fj(X(1,k),X(2,k));
             %Print Optimal Controls
             plot(v,X(1,v))
             hold on
