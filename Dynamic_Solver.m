@@ -72,8 +72,7 @@ classdef Dynamic_Solver
                         Ui = U_mesh(jj);
                         
                         % Calculate the value of x(i,j)(N-k +1) = a_D(xi(N -k),uj(N-k))
-                        X_next = obj.a_D(X1,X2,Ui,obj.A,obj.B);
-
+                        X_next = a_D(obj,X1,X2,Ui);
                         % Use this value of x(i,j)(N-k+1) to select the appropriate
                         % stored value of J*{(N-k),N} (x(i,j)(N-k+1))
                         % if x(i,j)(N-k+1) is not a grid value, interpolation is
@@ -99,7 +98,7 @@ classdef Dynamic_Solver
                         % C_star = [X1;X2]' * obj.Q * [X1;X2] ...
                         %     + Ui' * obj.R * Ui + J_opt_next ;
                         
-                        C_star = obj.g_D(X1,X2,Ui,obj.Q,obj.R) + J_opt_next ;
+                        C_star = g_D(obj,X1,X2,Ui) + J_opt_next ;
 
                         % if C* just calculated less than COSMIN store this value as
                         % COSMIN and store the value uj(N-k) in UMIN
@@ -188,19 +187,21 @@ classdef Dynamic_Solver
             
         end
         
-    end
-    
-    methods (Static)
-           
-        function X1_new = a_D(X1,X2,Ui,A,B)
+                   
+        function X1_new = a_D(obj,X1,X2,Ui)
             %keyboard;
-             X1_new = A*[X1;X2] + B*Ui;
+             X1_new = obj.A*[X1;X2] + obj.B*Ui;
 %             X1_new = [A(1).*X1+ A(3).*X2 + B(1).*Ui; A(2).*X1+ A(4).*X2 + B(2).*Ui];
         end
         
-        function J = g_D(X1,X2,Ui,Q,R)
-           J = [X1;X2]' * Q * [X1;X2] + Ui' * R * Ui;
+        function J = g_D(obj,X1,X2,Ui)
+           J = [X1;X2]' * obj.Q * [X1;X2] + Ui' * obj.R * Ui;
         end
+        
+    end
+    
+    methods (Static)
+
     end
 end
 
