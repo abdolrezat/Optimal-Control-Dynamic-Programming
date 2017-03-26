@@ -207,13 +207,25 @@ classdef Dynamic_Solver
     
     methods (Static)
 
-        function assess_data(obj1,obj2)
-           % use this function to compare saved datas
-            % if( obj1.J_star == obj2.J_star) 
+        function b = compare_data(obj1,obj2)
+           % use this function to compare saved datas 
+           % check J* matrix
+           if( isempty(obj1.J_star) || isempty(obj2.J_star) )
+               error('stop throwing empty data at me')
+           end
+           
+           c1 = obj1.J_star == obj2.J_star ;
+           if(all(c1(:)))
+               disp('J_star matrices comparison -- Match!')
+               b = true;
+           else
+               warning('J_star matrices -- Do NOT match')
+               b = false;
+           end
+        end
            % end
         end
             
             
-    end
 end
 
