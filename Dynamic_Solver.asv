@@ -58,6 +58,8 @@ classdef Dynamic_Solver
                         % Increase K by 1
             for k=1:obj.N-1
                 tic
+                F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                                                obj.J_star(:,:,obj.N-k+1),'linear');
                 for i1=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
                     for i2=1:obj.dx
                     X1 = obj.X1_mesh(i1,i2);
@@ -72,8 +74,7 @@ classdef Dynamic_Solver
                         Ui = U_mesh(jj);
                         
                         % Calculate the value of x(i,j)(N-k +1) = a_D(xi(N -k),uj(N-k))
-                        X_next = a_D(obX1,X2,Ui);
-
+                        X_next = a_D(obj,X1,X2,Ui);
                         % Use this value of x(i,j)(N-k+1) to select the appropriate
                         % stored value of J*{(N-k),N} (x(i,j)(N-k+1))
                         % if x(i,j)(N-k+1) is not a grid value, interpolation is
@@ -85,8 +86,6 @@ classdef Dynamic_Solver
                         %
                         %using griddedInterpolant
                         
-                        F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                                                obj.J_star(:,:,obj.N-k+1),'linear');
                         J_opt_next = F(X_next(1),X_next(2));
                         
                         %
@@ -99,7 +98,7 @@ classdef Dynamic_Solver
                         % C_star = [X1;X2]' * obj.Q * [X1;X2] ...
                         %     + Ui' * obj.R * Ui + J_opt_next ;
                         
-                        C_star = obj.g_D(X1,X2,Ui,obj.Q,obj.R) + J_opt_next ;
+                        C_star = g_D(obj,X1,X2,Ui) + J_opt_next ;
 
                         % if C* just calculated less than COSMIN store this value as
                         % COSMIN and store the value uj(N-k) in UMIN
@@ -164,16 +163,20 @@ classdef Dynamic_Solver
                     obj.J_star(:,:,k),'linear');
                 J(k) = Fj(X(1,k),X(2,k));
                 
-                X(:,k+1) = obj.A*X(:,k) + obj.B*U(k);
+                X(:,k+1) = a_D(obj,X(1,k),X(2,k),U(k));
+               % X(:,k+1) = obj.A*X(:,k) + obj.B*U(k);
             end
                 k = k+1;
+                %-- Optimal Control Input u*
                 Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
                     obj.u_star(:,:,k),'linear');
                 U(k) = Fu(X(1,k),X(2,k));
+               
+                %-- Commented -- Cost of path
+                %Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                %   obj.J_star(:,:,k),'linear');
+                %J(k) = Fj(X(1,k),X(2,k));
                 
-                Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                    obj.J_star(:,:,k),'linear');
-                J(k) = Fj(X(1,k),X(2,k));
             %Print Optimal Controls
             plot(v,X(1,v))
             hold on
@@ -203,6 +206,13 @@ classdef Dynamic_Solver
     
     methods (Static)
 
+        function assess_data(obj1,obj2)
+           % use this function to compare t
+            % if( obj1.J_star == obj2.J_star) 
+           % end
+        end
+            
+            
     end
 end
 

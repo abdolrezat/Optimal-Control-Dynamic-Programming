@@ -58,6 +58,8 @@ classdef Dynamic_Solver
                         % Increase K by 1
             for k=1:obj.N-1
                 tic
+                F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                                                obj.J_star(:,:,obj.N-k+1),'linear');
                 for i1=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
                     for i2=1:obj.dx
                     X1 = obj.X1_mesh(i1,i2);
@@ -84,8 +86,6 @@ classdef Dynamic_Solver
                         %
                         %using griddedInterpolant
                         
-                        F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                                                obj.J_star(:,:,obj.N-k+1),'linear');
                         J_opt_next = F(X_next(1),X_next(2));
                         
                         %
@@ -154,9 +154,10 @@ classdef Dynamic_Solver
             J = U;
             X(:,1) = X0;
             for k=1:obj.N-1
-                
+                keyboard
                 Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
                     obj.u_star(:,:,k),'linear');
+                
                 U(k) = Fu(X(1,k),X(2,k));
                 
                 Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
@@ -206,6 +207,13 @@ classdef Dynamic_Solver
     
     methods (Static)
 
+        function assess_data(obj1,obj2)
+           % use this function to compare saved datas
+            % if( obj1.J_star == obj2.J_star) 
+           % end
+        end
+            
+            
     end
 end
 

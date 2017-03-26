@@ -1,4 +1,4 @@
-%% test gridded interpolant (works)
+%% test gridded interpolant see if it works as desired (works)
 obj = Dynamic_Solver;
 s_r = linspace(obj.x_min,obj.x_max,obj.dx);
 [obj.X1_mesh, obj.X2_mesh] = ndgrid(s_r, s_r);
