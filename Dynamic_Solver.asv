@@ -154,9 +154,10 @@ classdef Dynamic_Solver
             J = U;
             X(:,1) = X0;
             for k=1:obj.N-1
-                
+                keyboard
                 Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
                     obj.u_star(:,:,k),'linear');
+                
                 U(k) = Fu(X(1,k),X(2,k));
                 
                 Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
@@ -206,13 +207,21 @@ classdef Dynamic_Solver
     
     methods (Static)
 
-        function assess_data(obj1,obj2)
-           % use this function to compare t
-            % if( obj1.J_star == obj2.J_star) 
+        function compare_data(obj1,obj2)
+           % use this function to compare saved datas
+           % check J* matrix
+           keyboard
+           if( isempty(obj1.J_star) || isempty(obj2.J_star) )
+           c1 = obj1.J_star == obj2.J_star ;
+           if(all(c1(:)))
+               disp('J_star matrices match!')
+           else
+               warning('J_star matrices dont match')
+           end
+        end
            % end
         end
             
             
-    end
 end
 

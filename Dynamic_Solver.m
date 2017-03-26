@@ -214,8 +214,7 @@ classdef Dynamic_Solver
                error('stop throwing empty data at me')
            end
            
-           c1 = obj1.J_star == obj2.J_star ;
-           if(all(c1(:)))
+           if( isequal(obj1.J_star, obj2.J_star) )
                disp('J_star matrices comparison -- Match!')
                b = true;
            else
@@ -224,7 +223,7 @@ classdef Dynamic_Solver
            end
         end
            % end
-        end
+    end
             
             
 end
