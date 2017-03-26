@@ -1,4 +1,4 @@
-classdef Dynamic_Solver
+classdef Dynamic_Solver < handle
     %DYNAMIC_SOLVER Summary of this class goes here
     %   Detailed explanation goes here
     
@@ -154,7 +154,7 @@ classdef Dynamic_Solver
             J = U;
             X(:,1) = X0;
             for k=1:obj.N-1
-                keyboard
+                
                 Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
                     obj.u_star(:,:,k),'linear');
                 
