@@ -9,10 +9,8 @@ N = 30;
 
 [X1, X2] = ndgrid(1:N,1:N);
 U = 1:1000;
+%% ----------------- Non-Vectorized Implementation ---------------------- %%
 
-J = zeros(N,N,1000);
-J_star = zeros(N,N);
-u_star = J_star;
 tic
 for i=1:N
     for ii=1:N
@@ -36,4 +34,14 @@ for i=1:N
     end
 end
 fprintf('non-vectorized operation complete in %f seconds...\n',toc)
+
+%% ----------------- Vectorized Implementation ---------------------- %%
+J_star_V = zeros(N,N);
+u_star_V = J_star_V;
+JV = zeros(N,N,length(U));
+X_next = [(A(1)*X1 + A(3)*X2 + B(1)*Ui);
+    (A(2)*X1 + A(4)*X2 + B(2)*Ui)];
+
+C_star = Q(1)*X1.^2 + Q(4)*X2.^2 + R * Ui.^2;
+
 
