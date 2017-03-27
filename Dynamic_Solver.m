@@ -23,6 +23,9 @@ classdef Dynamic_Solver < handle
         J_star
         X1_mesh
         X2_mesh
+        X1_mesh_3D
+        X2_mesh_3D
+        U_mesh_3D
     end
     
     methods
@@ -54,16 +57,14 @@ classdef Dynamic_Solver < handle
             U_mesh = linspace(obj.u_min, obj.u_max, obj.du);
             
             %3d grid for voctorization in calculation of C_star_M
-            [X1_mesh_3D,X2_mesh_3D,U_mesh_3D] = ndgrid(s_r,s_r,U_mesh);
+            [obj.X1_mesh_3D,obj.X2_mesh_3D,obj.U_mesh_3D] = ndgrid(s_r,s_r,U_mesh);
             %
             obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
             obj.u_star = obj.J_star;
             % Increase K by 1
             for k=1:obj.N-1
                 tic
-                C_star_M = obj.Q(1)*X1_mesh_3D.^2 + ...
-                    obj.Q(4)*X2_mesh_3D.^2 + obj.R * U_mesh_3D.^2;
-                J_opt_M = C_star_M + J_opt(obj, X1_mesh_3D, X2_mesh_3D, U_mesh_3D, k);
+                J_M = J_state_M(obj, k);
                 for i1=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
                     for i2=1:obj.dx
                         % set COSMIN to a large positive number
@@ -72,7 +73,7 @@ classdef Dynamic_Solver < handle
                         % set ui(N-k) to the starting quantized value by making j = 1
                         for jj=1:obj.du
                             Ui = U_mesh(jj);
-                            C_star = J_opt_M(i1,i2,jj) ;
+                            C_star = J_M(i1,i2,jj) ;
                             % if C* just calculated less than COSMIN store this value as
                             % COSMIN and store the value uj(N-k) in UMIN
                             if(C_star < COSTMIN)
@@ -151,29 +152,32 @@ classdef Dynamic_Solver < handle
         end
         
         
-        function [Xnext_M1,Xnext_M2] = a_D_M(obj,X1,X2,Ui)
+        function [Xnext_M1,Xnext_M2] = a_D_M(obj)
             %keyboard;
-            Xnext_M1 = obj.A(1)*X1 + obj.A(3)*X2 + obj.B(1)*Ui;
-            Xnext_M2 = obj.A(2)*X1 + obj.A(4)*X2 + obj.B(2)*Ui;
-            %             X1_new = [A(1).*X1+ A(3).*X2 + B(1).*Ui; A(2).*X1+ A(4).*X2 + B(2).*Ui];
+            Xnext_M1 = obj.A(1)*obj.X1_mesh_3D + obj.A(3)*obj.X2_mesh_3D + obj.B(1)*obj.U_mesh_3D;
+            Xnext_M2 = obj.A(2)*obj.X1_mesh_3D + obj.A(4)*obj.X2_mesh_3D + obj.B(2)*obj.U_mesh_3D;
         end
         
         
-        function X1_new = a_D(obj,X1,X2,Ui)
+        function X1_new = a_D(obj,X1,X2,Ui) 
+            % old function used for get_optimal_path
             X1_new = obj.A*[X1;X2] + obj.B*Ui;
         end
         
-        function J = g_D(obj,X1,X2,Ui)
-            J = [X1;X2]' * obj.Q * [X1;X2] + Ui' * obj.R * Ui;
+        function J = g_D(obj)
+            %J = [X1;X2]' * obj.Q * [X1;X2] + Ui' * obj.R * Ui;
+            J = obj.Q(1)*obj.X1_mesh_3D.^2 + ...
+                    obj.Q(4)*obj.X2_mesh_3D.^2 + obj.R * obj.U_mesh_3D.^2;
         end
         
-        function J_opt_M = J_opt(obj,X1,X2,Ui,k)
+        function J = J_state_M(obj,k)
             F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
                 obj.J_star(:,:,obj.N-k+1),'linear');
-            %[X_next_M1,X_next_M2] = a_D_M(obj,X1_mesh_3D, X2_mesh_3D, U_mesh_3D);
-            X_next_M1 = obj.A(1)*X1 + obj.A(3)*X2 + obj.B(1)*Ui;
-            X_next_M2 = obj.A(2)*X1 + obj.A(4)*X2 + obj.B(2)*Ui;
-            J_opt_M = F(X_next_M1,X_next_M2);
+            %get next state X
+            [X_next_M1,X_next_M2] = a_D_M(obj);
+            %find J final for each state and control (X,U) and add it to next state
+            %optimum J*
+            J = F(X_next_M1,X_next_M2) + g_D(obj);
         end
     end
     
