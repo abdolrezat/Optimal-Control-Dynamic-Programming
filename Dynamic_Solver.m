@@ -46,20 +46,28 @@ classdef Dynamic_Solver < handle
         end
         
         function obj = run(obj)
-            try
             % K = 0
             % Calculate and store J*NN = h(xi(N)) for all x(N)
             s_r = linspace(obj.x_min,obj.x_max,obj.dx);
             [obj.X1_mesh, obj.X2_mesh] = ndgrid(s_r, s_r);
             
             U_mesh = linspace(obj.u_min, obj.u_max, obj.du);
+            
+            %3d grid for voctorization in calculation of C_star_M 
+            [X1_mesh_3D,X2_mesh_3D,U_mesh_3D] = ndgrid(s_r,s_r,U_mesh);
+            %
             obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
             obj.u_star = obj.J_star;
-                        % Increase K by 1
+            % Increase K by 1
             for k=1:obj.N-1
                 tic
                 F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                                                obj.J_star(:,:,obj.N-k+1),'linear');
+                    obj.J_star(:,:,obj.N-k+1),'linear');
+                C_star_M = obj.Q(1)*X1_mesh_3D.^2 + ...
+                    obj.Q(4)*X2_mesh_3D.^2 + obj.R * U_mesh_3D.^2;
+                %keyboard
+                [X_next_M1,X_next_M2] = a_D_M(obj,X1_mesh_3D, X2_mesh_3D, U_mesh_3D);
+                
                 for i1=1:obj.dx % Set xi(N-k) == starting quantized value by making i = 1
                     for i2=1:obj.dx
                     X1 = obj.X1_mesh(i1,i2);
@@ -74,7 +82,7 @@ classdef Dynamic_Solver < handle
                         Ui = U_mesh(jj);
                         
                         % Calculate the value of x(i,j)(N-k +1) = a_D(xi(N -k),uj(N-k))
-                        X_next = a_D(obj,X1,X2,Ui);
+                        X_next = [X_next_M1(i1,i2,jj);X_next_M2(i1,i2,jj)];
                         % Use this value of x(i,j)(N-k+1) to select the appropriate
                         % stored value of J*{(N-k),N} (x(i,j)(N-k+1))
                         % if x(i,j)(N-k+1) is not a grid value, interpolation is
@@ -98,7 +106,7 @@ classdef Dynamic_Solver < handle
                         % C_star = [X1;X2]' * obj.Q * [X1;X2] ...
                         %     + Ui' * obj.R * Ui + J_opt_next ;
                         
-                        C_star = g_D(obj,X1,X2,Ui) + J_opt_next ;
+                        C_star = C_star_M(i1,i2,jj) + J_opt_next ;
 
                         % if C* just calculated less than COSMIN store this value as
                         % COSMIN and store the value uj(N-k) in UMIN
@@ -134,9 +142,7 @@ classdef Dynamic_Solver < handle
                 fprintf('step %d - %f seconds\n', k, toc)
             end %end of for loop when k = N
             
-            catch e
-                e.throw
-            end        
+       
         end
      
         
@@ -193,9 +199,10 @@ classdef Dynamic_Solver < handle
         end
         
                    
-        function X1_new = a_D(obj,X1,X2,Ui)
+        function [Xnext_M1,Xnext_M2] = a_D_M(obj,X1,X2,Ui)
             %keyboard;
-             X1_new = obj.A*[X1;X2] + obj.B*Ui;
+            Xnext_M1 = obj.A(1)*X1 + obj.A(3)*X2 + obj.B(1)*Ui;
+            Xnext_M2 = obj.A(2)*X1 + obj.A(4)*X2 + obj.B(2)*Ui;
 %             X1_new = [A(1).*X1+ A(3).*X2 + B(1).*Ui; A(2).*X1+ A(4).*X2 + B(2).*Ui];
         end
         
@@ -213,7 +220,7 @@ classdef Dynamic_Solver < handle
            if( isempty(obj1.J_star) || isempty(obj2.J_star) )
                error('stop throwing empty data at me')
            end
-           
+           %compare
            if( isequal(obj1.J_star, obj2.J_star) )
                disp('J_star matrices comparison -- Match!')
                b = true;
