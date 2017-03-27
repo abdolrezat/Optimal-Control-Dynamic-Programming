@@ -64,11 +64,11 @@ classdef Dynamic_Solver < handle
             % Increase K by 1
             for k=1:obj.N-1
                 tic
-                k_s = obj.N-k;
                 J_M = J_state_M(obj, k);
-                [obj.J_star(:,:,k_s),u_star_idx] = min(J_M,[],3);
+                keyboard
+                [obj.J_star(:,:,obj.N-k),u_star_idx] = min(J_M,[],3);
                 % store UMIN in UOPT(N-k,I)
-                obj.u_star(:,:,k_s) = U_mesh(u_star_idx);
+                obj.u_star(:,:,obj.N-k) = obj.U_mesh_3D(1,1,u_star_idx);
                 fprintf('step %d - %f seconds\n', k, toc)
             end %end of for loop when k = N
             
