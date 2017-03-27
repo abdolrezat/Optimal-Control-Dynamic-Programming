@@ -67,7 +67,7 @@ classdef Dynamic_Solver < handle
                     
                     % set COSMIN to a large positive number
                     COSTMIN = 10000; %set to a finite large number to increase performance
-                    UMIN = [];
+                    UMIN = 10000;
                     % set ui(N-k) to the starting quantized value by making j = 1
                     
                     for jj=1:obj.du
