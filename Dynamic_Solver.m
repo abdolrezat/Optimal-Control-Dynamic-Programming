@@ -31,10 +31,10 @@ classdef Dynamic_Solver < handle
     methods
         
         function obj = Dynamic_Solver()
-            obj.Q = [0.25, 0; 0, 0.05];
+            obj.Q = [0.25, 0; 0, 0.05]*5;
             obj.A = [0.9974, 0.0539; -0.1078, 1.1591];
             obj.B = [0.0013; 0.0539];
-            obj.R = 0.05;
+            obj.R = 0.05*5;
             obj.N = 130;
             obj.S = 2;
             obj.C = 1;

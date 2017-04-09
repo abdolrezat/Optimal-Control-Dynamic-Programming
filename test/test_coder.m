@@ -26,13 +26,13 @@ obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
 obj.u_star = obj.J_star;
 % Increase K by 1
 for k=1:obj.N-1
-    tic
+    
     k_s = obj.N-k;
     J_M = J_state_M(obj, k);
     [obj.J_star(:,:,k_s),u_star_idx] = min(J_M,[],3);
     % store UMIN in UOPT(N-k,I)
     obj.u_star(:,:,k_s) = U_mesh(u_star_idx);
-    fprintf('step %d - %f seconds\n', k, toc)
+    fprintf('step %d - %f seconds\n', k)
 end %end of for loop when k = N
 get_optimal_path(obj)
 end
@@ -82,7 +82,6 @@ plot(v,U(v),'--')
 title('Optimal control for initial state X0')
 xlabel('stage - k')
 ylabel('state and inputs')
-legend('X1', 'X2', 'u*');
 grid on
 xlim([v(1) v(end)])
 
@@ -129,7 +128,7 @@ if( isequal(obj1.J_star, obj2.J_star) )
     disp('J_star matrices comparison -- Match!')
     b = true;
 else
-    warning('J_star matrices -- Do NOT match')
+    %warning('J_star matrices -- Do NOT match')
     b = false;
 end
 end
