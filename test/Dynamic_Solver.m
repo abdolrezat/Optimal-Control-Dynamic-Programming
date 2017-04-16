@@ -51,7 +51,7 @@ classdef Dynamic_Solver < handle
         function obj = run(obj)
             % K = 0
             % Calculate and store J*NN = h(xi(N)) for all x(N)
-            s_r = linspace(obj.x_min,obj.x_max,obj.dx);
+            s_r = single(linspace(obj.x_min,obj.x_max,obj.dx));
             [obj.X1_mesh, obj.X2_mesh] = ndgrid(s_r, s_r);
             
             U_mesh = linspace(obj.u_min, obj.u_max, obj.du);
@@ -59,13 +59,22 @@ classdef Dynamic_Solver < handle
             %3d grid for voctorization in calculation of C_star_M
             [obj.X1_mesh_3D,obj.X2_mesh_3D,obj.U_mesh_3D] = ndgrid(s_r,s_r,U_mesh);
             %
-            obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
+            obj.J_star = zeros([size(obj.X1_mesh),obj.N],'single');
             obj.u_star = obj.J_star;
             % Increase K by 1
             for k=1:obj.N-1
                 tic
                 k_s = obj.N-k;
                 J_M = J_state_M(obj, k);
+%                 switch k
+%                     case {3,20,60,100,129}
+%                         hold on
+%                         for ii=1:100:obj.du
+%                             plot3(obj.X1_mesh,obj.X2_mesh,J_M(:,:,ii))
+%                         end
+%                         keyboard
+%                         close gcf
+%                 end                
                 [obj.J_star(:,:,k_s),u_star_idx] = min(J_M,[],3);
                 % store UMIN in UOPT(N-k,I)
                 obj.u_star(:,:,k_s) = U_mesh(u_star_idx);
