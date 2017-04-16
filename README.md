@@ -16,7 +16,7 @@ Calculate the optimal controls at each state:
 `run(objA)`  
 Finally, track the optimal states and controls:  
 `get_optimal_path(objA)`
-or get the optimal states and controls from any desired initial states:
+or get the optimal states and controls from any desired initial states:  
 `get_optimal_path(objA, [x1 x2])`
 
 ## Unique Performance
