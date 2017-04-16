@@ -26,6 +26,10 @@ F22 = griddedInterpolant({s_r,s_r}, obj.J_star(:,:,end));
 %test memory
 J = obj.J_star(:,:,end);
 whos F22 J
+%test type 'single' variables
+FS = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+single(J),'linear');
+whos FS %half the size of doubles
 
 %test one Y(1xN) vector 
 %FY = griddedInterpolant({s_r,s_r}, J(:)')
