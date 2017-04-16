@@ -16,6 +16,40 @@ obj.J_star(:,:,obj.N-k+1),'linear');
 plot3(obj.X1_mesh, obj.X2_mesh, obj.J_star(:,:,end))
 hold on
 plot3(0,0,F(0,0),'*') %plot a point
-p = @(a,b)(plot3(a,b,F(a,b),'*')); %function to plot points
+p = @(a,b)(plot3(a,b,F(a,b),'*r')); %function to plot points
 p([7 5 3 3 1 -4 -5],[10 8 5 3 -1 -2 -5]) %plot random points see if they fit the surface
 %it works
+
+%test with only grid vectors {s_r,s_r}
+F22 = griddedInterpolant({s_r,s_r}, obj.J_star(:,:,end));
+
+%test memory
+J = obj.J_star(:,:,end);
+whos F22 J
+
+%test one Y(1xN) vector 
+%FY = griddedInterpolant({s_r,s_r}, J(:)')
+%FXY = griddedInterpolant(obj.X1_mesh(:), obj.X2_mesh(:), J(:),'linear')
+
+%test performance of 'nearest' vs. 'linear'
+
+FN = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+obj.J_star(:,:,obj.N-k+1),'nearest');
+
+pN = @(a,b)(plot3(a,b,FN(a,b),'*b')); %function to plot points
+pN([7 5 3 3 1 -4 -5],[10 8 5 3 -1 -2 -5]) %plot random points see if they fit the surface
+
+
+tic
+X = J;
+for ii=1:10000
+    X = F(obj.X1_mesh, obj.X2_mesh);
+end
+toc
+tic
+X = J;
+for ii=1:10000
+    X = FN(obj.X1_mesh, obj.X2_mesh);
+end
+toc
+
