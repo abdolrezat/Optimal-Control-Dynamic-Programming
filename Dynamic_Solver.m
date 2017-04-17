@@ -155,13 +155,15 @@ classdef Dynamic_Solver < handle
         end
         
         function J = J_state_M(obj,k)
-            F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                obj.J_star(:,:,obj.N-k+1),'linear');
+%             F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+%                 obj.J_star(:,:,obj.N-k+1),'linear');
             %get next state X
             [X_next_M1,X_next_M2] = a_D_M(obj);
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
-            J_opt_nextstate = F(X_next_M1,X_next_M2);
+            J_opt_nextstate = interpn(obj.X1_mesh, obj.X2_mesh, obj.J_star(:,:,obj.N-k+1), ...
+                X_next_M1,X_next_M2);
+            keyboard
             J_current_state = g_D(obj);
             J = J_opt_nextstate + J_current_state;
             if(obj.checkstagesXJF)
