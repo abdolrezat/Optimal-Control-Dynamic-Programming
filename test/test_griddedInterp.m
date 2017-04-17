@@ -23,8 +23,10 @@ p([7 5 3 3 1 -4 -5],[10 8 5 3 -1 -2 -5]) %plot random points see if they fit the
 %test with only grid vectors {s_r,s_r}
 F22 = griddedInterpolant({s_r,s_r}, obj.J_star(:,:,end));
 
-%test memory
+% test with one grid vector and one mesh grid
 J = obj.J_star(:,:,end);
+%F33 = griddedInterpolant({s_r},obj.X1_mesh, J);
+%test memory
 whos F22 J
 %test type 'single' variables
 FS = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
