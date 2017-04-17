@@ -26,11 +26,18 @@ classdef Dynamic_Solver < handle
         X1_mesh_3D
         X2_mesh_3D
         U_mesh_3D
+        J_check
+        J_current_state_check 
+        J_opt_nextstate_check 
+        X_next_M1_check 
+        X_next_M2_check
+        checkstagesXJF
     end
     
     methods
         
         function obj = Dynamic_Solver()
+            obj.checkstagesXJF = 1;
             obj.Q = [0.25, 0; 0, 0.05];
             obj.A = [0.9974, 0.0539; -0.1078, 1.1591];
             obj.B = [0.0013; 0.0539];
@@ -136,7 +143,7 @@ classdef Dynamic_Solver < handle
         end
         
         
-        function X1_new = a_D(obj,X1,X2,Ui) 
+        function X1_new = a_D(obj,X1,X2,Ui)
             % old function used for get_optimal_path
             X1_new = obj.A*[X1;X2] + obj.B*Ui;
         end
@@ -144,7 +151,7 @@ classdef Dynamic_Solver < handle
         function J = g_D(obj)
             %J = [X1;X2]' * obj.Q * [X1;X2] + Ui' * obj.R * Ui;
             J = obj.Q(1)*obj.X1_mesh_3D.^2 + ...
-                    obj.Q(4)*obj.X2_mesh_3D.^2 + obj.R * obj.U_mesh_3D.^2;
+                obj.Q(4)*obj.X2_mesh_3D.^2 + obj.R * obj.U_mesh_3D.^2;
         end
         
         function J = J_state_M(obj,k)
@@ -154,8 +161,36 @@ classdef Dynamic_Solver < handle
             [X_next_M1,X_next_M2] = a_D_M(obj);
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
-            J = F(X_next_M1,X_next_M2) + g_D(obj);
+            J_opt_nextstate = F(X_next_M1,X_next_M2);
+            J_current_state = g_D(obj);
+            J = J_opt_nextstate + J_current_state;
+            if(obj.checkstagesXJF)
+                obj.J_check(:,:,k) = J(50:55,52:57,105);
+                obj.J_current_state_check(:,:,k) = J_current_state(50:55,52:57,105);
+                obj.J_opt_nextstate_check(:,:,k) = J_opt_nextstate(50:55,52:57,105);
+                obj.X_next_M1_check(:,:,k) = X_next_M1(50:55,52:57,105);
+                obj.X_next_M2_check(:,:,k)  = X_next_M2(50:55,52:57,105);
+            end
         end
+        
+        function compare_stages(obj, k)
+            fprintf('%% -------------------------------------------\n')
+            fprintf('J for stages\n')
+            obj.J_check(:,:,k)
+            fprintf('%% -----------------------------------------------\n')
+            fprintf('J Current stage for stages\n')
+            obj.J_current_state_check(:,:,k)
+            fprintf('%% -------------------------------------------\n')
+            fprintf('J optimum next stage for stages\n')
+            obj.J_opt_nextstate_check(:,:,k)
+            fprintf('%% -------------------------------------------\n')            
+            fprintf('X1 next stage\n')
+            obj.X_next_M1_check(:,:,k)
+            fprintf('%% -------------------------------------------\n')
+            fprintf('X2 next stage\n')
+            obj.X_next_M2_check(:,:,k)
+        end
+        
     end
     
     methods (Static)
