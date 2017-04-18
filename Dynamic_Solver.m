@@ -20,16 +20,11 @@ classdef Dynamic_Solver < handle
         dx
         du
         u_star
-        u_star_idx
         J_star
-        J_current_state
-        J_opt_nextstate
         X1_mesh
         X2_mesh
         X1_mesh_3D
         X2_mesh_3D
-        X_next_M1
-        X_next_M2
         U_mesh_3D
         J_check
         J_current_state_check 
@@ -71,19 +66,16 @@ classdef Dynamic_Solver < handle
             %3d grid for voctorization in calculation of C_star_M
             [obj.X1_mesh_3D,obj.X2_mesh_3D,obj.U_mesh_3D] = ndgrid(s_r,s_r,U_mesh);
             %
-%             obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
+            obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
             obj.u_star = obj.J_star;
-            [obj.X_next_M1, obj.X_next_M2] = a_D_M(obj);
-            obj.J_current_state = g_D(obj);
-            obj.J_opt_nextstate = zeros(size(obj.X1_mesh));
-            
             % Increase K by 1
             for k=1:obj.N-1
                 tic
                 k_s = obj.N-k;
-                J_state_M(obj, k);
+                J_M = J_state_M(obj, k);
+                [obj.J_star(:,:,k_s),u_star_idx] = min(J_M,[],3);
                 % store UMIN in UOPT(N-k,I)
-                obj.u_star(:,:,k_s) = U_mesh(obj.u_star_idx);
+                obj.u_star(:,:,k_s) = U_mesh(u_star_idx);
                 fprintf('step %d - %f seconds\n', k, toc)
             end %end of for loop when k = N
             
@@ -111,18 +103,18 @@ classdef Dynamic_Solver < handle
                 
                 U(k) = Fu(X(1,k),X(2,k));
                 
-%                 Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-%                     obj.J_star(:,:,k),'linear');
-%                 J(k) = Fj(X(1,k),X(2,k));
+                Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                    obj.J_star(:,:,k),'linear');
+                J(k) = Fj(X(1,k),X(2,k));
                 
                 X(:,k+1) = a_D(obj,X(1,k),X(2,k),U(k));
                 % X(:,k+1) = obj.A*X(:,k) + obj.B*U(k);
             end
             k = k+1;
             %-- Optimal Control Input u*
-%             Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-%                 obj.u_star(:,:,k),'linear');
-%             U(k) = Fu(X(1,k),X(2,k));
+            Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+                obj.u_star(:,:,k),'linear');
+            U(k) = Fu(X(1,k),X(2,k));
             
             %-- Commented -- Cost of path
             %Fj = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
@@ -162,24 +154,22 @@ classdef Dynamic_Solver < handle
                 obj.Q(4)*obj.X2_mesh_3D.^2 + obj.R * obj.U_mesh_3D.^2;
         end
         
-        function J_state_M(obj,k)
+        function J = J_state_M(obj,k)
             F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                obj.J_opt_nextstate,'linear');
+                obj.J_star(:,:,obj.N-k+1),'linear');
             %get next state X
-%             [X_next_M1,X_next_M2] = a_D_M(obj);
+            [X_next_M1,X_next_M2] = a_D_M(obj);
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
-            
-            % % Add up J's % % 
-            [obj.J_opt_nextstate, obj.u_star_idx] = ...
-                min(F(obj.X_next_M1, obj.X_next_M2) + obj.J_current_state,[],3);
-            % % % % % % % % % %
+            J_opt_nextstate = F(X_next_M1,X_next_M2);
+            J_current_state = g_D(obj);
+            J = J_opt_nextstate + J_current_state;
             if(obj.checkstagesXJF)
-                obj.J_current_state_check(:,:,k) = obj.J_current_state(50:55,52:57,105);
-%                 obj.J_opt_nextstate_check(:,:,k) = obj.J_opt_nextstate(50:55,52:57,105);
-                obj.X_next_M1_check(:,:,k) = obj.X_next_M1(50:55,52:57,105);
-                obj.X_next_M2_check(:,:,k)  = obj.X_next_M2(50:55,52:57,105);
-%                 obj.J_check(:,:,k) = obj.J_opt_nextstate(50:55,52:57,105);
+                obj.J_check(:,:,k) = J(50:55,52:57,105);
+                obj.J_current_state_check(:,:,k) = J_current_state(50:55,52:57,105);
+                obj.J_opt_nextstate_check(:,:,k) = J_opt_nextstate(50:55,52:57,105);
+                obj.X_next_M1_check(:,:,k) = X_next_M1(50:55,52:57,105);
+                obj.X_next_M2_check(:,:,k)  = X_next_M2(50:55,52:57,105);
             end
         end
         
