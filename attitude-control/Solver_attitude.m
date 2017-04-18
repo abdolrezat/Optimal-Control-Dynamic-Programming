@@ -8,7 +8,41 @@ classdef Solver_attitude < dynamicprops
         J3
         dim_U % dimension number of U, after the 7 state variables
         U_vector % values that are applied as control inputs
+        % big data
+        J_next_states_opt % optimum values of J will be stored in this matrix and recalled each stage
+        J_current_state_fix % values of cost to reach next stage, always fixed in Time Invariant system
+        X1 % (s+c)-dimensional grid of state 1
+        X2 
+        X3
+        X4
+        X5
+        X6
+        X7
+        U1 % (s+c)-dimensional grid of control input 1
+        U2
+        U3
+        X1_next % (s+c)-dim grid of next state-1
+        X2_next
+        X3_next
+        X4_next
+        X5_next
+        X6_next
+        X7_next
         
+        U_Opt % (s-dim x k) grid of optimal values U* for every stage and states
+        %-- ranges for grid generation
+        sr_1 % state 1 range vector for grid and interpolant generation 
+        sr_2 % "
+        sr_3 % "
+        sr_4 % "
+        sr_5 % "
+        sr_6 % "
+        sr_7 % "
+        cr_1 % control input 1 range vector for grid generation
+        cr_2 
+        cr_3
+        
+
     end
     
     methods
@@ -56,8 +90,9 @@ classdef Solver_attitude < dynamicprops
         end
         
         function J = J_state_M(obj)
-            %% CAUSION: this interpolant is only valid for Xmesh
-            F = griddedInterpolant(X1,X2,X3,X4,X5,X6,X7, ...
+            %% CAUTION: this interpolant is only valid for Xmesh
+            F = griddedInterpolant(...
+                {obj.sr_1, obj.sr_2, obj.sr_3, obj.sr_4,obj.sr_5, obj.sr_6, obj.sr_7}, ...
                 obj.stage_J_star,'linear');
             % calculate cost to reach next stage
             J = g_D(X1,X2,X3,X4,X5,X6,X7);
