@@ -44,10 +44,18 @@ classdef Dynamic_Solver < handle
         function obj = Dynamic_Solver()
 <<<<<<< HEAD:test/Dynamic_Solver.m
             obj.Q = [0.25, 0; 0, 0.05]*5;
+<<<<<<< HEAD
+=======
+            obj.checkstagesXJF = 1;
+            obj.Q = [0.25, 0; 0, 0.05];
+>>>>>>> refs/remotes/origin/test-linear:Dynamic_Solver.m
+||||||| merged common ancestors
+=======
 =======
             obj.checkstagesXJF = 1;
             obj.Q = [0.25, 0; 0, 0.05];
 >>>>>>> test-linear:Dynamic_Solver.m
+>>>>>>> refs/remotes/origin/master
             obj.A = [0.9974, 0.0539; -0.1078, 1.1591];
             obj.B = [0.0013; 0.0539];
             obj.R = 0.05*5;
@@ -77,9 +85,16 @@ classdef Dynamic_Solver < handle
             %
 <<<<<<< HEAD:test/Dynamic_Solver.m
             obj.J_star = zeros([size(obj.X1_mesh),obj.N],'single');
+<<<<<<< HEAD
+=======
+%             obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
+>>>>>>> refs/remotes/origin/test-linear:Dynamic_Solver.m
+||||||| merged common ancestors
+=======
 =======
 %             obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
 >>>>>>> test-linear:Dynamic_Solver.m
+>>>>>>> refs/remotes/origin/master
             obj.u_star = obj.J_star;
             [obj.X_next_M1, obj.X_next_M2] = a_D_M(obj);
             obj.J_current_state = g_D(obj);
@@ -101,9 +116,16 @@ classdef Dynamic_Solver < handle
 %                         close gcf
 %                 end                
                 [obj.J_star(:,:,k_s),u_star_idx] = min(J_M,[],3);
+<<<<<<< HEAD
+=======
+                J_state_M(obj, k);
+>>>>>>> refs/remotes/origin/test-linear:Dynamic_Solver.m
+||||||| merged common ancestors
+=======
 =======
                 J_state_M(obj, k);
 >>>>>>> test-linear:Dynamic_Solver.m
+>>>>>>> refs/remotes/origin/master
                 % store UMIN in UOPT(N-k,I)
                 obj.u_star(:,:,k_s) = U_mesh(obj.u_star_idx);
                 fprintf('step %d - %f seconds\n', k, toc)
