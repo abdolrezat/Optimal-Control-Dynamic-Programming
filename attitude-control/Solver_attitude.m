@@ -152,10 +152,16 @@ classdef Solver_attitude < dynamicprops
             
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
-            [obj.J_next_states_opt, U_IDs] = min( obj.J_current_state_fix  + ...
+            [val, U_ID3] = min( obj.J_current_state_fix  + ...
                 F(obj.X1,obj.X2,obj.X3,obj.X4,obj.X5,obj.X6,obj.X7) ...
-                ,[], obj.dim_U);
-            [, , ] = ind2sub(size(obj.J_current_state_fix),id)
+                ,[], obj.dim_U3);
+            [val, U_ID2] = min( val, [], obj.dim_U2);   
+            [obj.J_next_stages_opt , U_ID1] = min( val, [], obj.dim_U1);   
+            
+            obj.U1_Opt(:,:,:,:,:,:,:,k_s) = obj.U_vector(U_ID1);
+            obj.U2_Opt(:,:,:,:,:,:,:,k_s) = obj.U_vector(U_ID2(U_ID1));
+            obj.U1_Opt(:,:,:,:,:,:,:,k_s) = obj.U_vector(U_ID3(U_ID2(U_ID1)));
+            
         end
         
         function spacecraft_dynamics_taylor_estimate(obj)
