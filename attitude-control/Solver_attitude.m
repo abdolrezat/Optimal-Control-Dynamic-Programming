@@ -27,7 +27,7 @@ classdef Solver_attitude < dynamicprops
         X1_next single  % (s+c)-dim grid of next state-1
         X2_next single 
         X3_next single 
-        X4_next single 
+%         X4_next single 
         X5_next single 
         X6_next single 
         X7_next single 
@@ -39,7 +39,7 @@ classdef Solver_attitude < dynamicprops
         sr_1 % state 1 range vector for grid and interpolant generation 
         sr_2 % "
         sr_3 % "
-        sr_4 % "
+%         sr_4 % "
         sr_5 % "
         sr_6 % "
         sr_7 % "
@@ -58,9 +58,9 @@ classdef Solver_attitude < dynamicprops
             this.J1 = 2;
             this.J2 = 2.5;
             this.J3 = 3;
-            this.dim_U1 = 8;
-            this.dim_U2 = 9;
-            this.dim_U3 = 10;
+            this.dim_U1 = 7;
+            this.dim_U2 = 8;
+            this.dim_U3 = 9;
             this.U_vector = [-0.01 0 0.01];
         end
         
@@ -98,7 +98,7 @@ classdef Solver_attitude < dynamicprops
         
         function calculate_J_current_state_fix(obj)
             obj.J_current_state_fix = obj.Q1*obj.X1.^2 + obj.Q2*obj.X2.^2 + ...
-                obj.Q3*obj.X3.^2 + obj.Q4*obj.X4.^2 + ...
+                obj.Q3*obj.X3.^2 + ...  % obj.Q4*obj.X4.^2 + ...
                 obj.Q5*obj.X5.^2 + obj.Q6*obj.X6.^2 + ...
                 obj.Q7*obj.X7.^2 + obj.R1*obj.U1.^2 + ...
                 obj.R2*obj.U2.^2 + obj.R3*obj.U3.^2;
@@ -136,9 +136,9 @@ classdef Solver_attitude < dynamicprops
             %
         end
         
-        function J = g_D(obj,X1,X2,X3,X4,X5,X6,X7,U1,U2,U3)
+        function J = g_D(obj,X1,X2,X3,X5,X6,X7,U1,U2,U3)
             J = obj.Q1*X1.^2 + obj.Q2*X2.^2 + ...
-                obj.Q3*X3.^2 + obj.Q4*X4.^2 + ...
+                obj.Q3*X3.^2 + ... %obj.Q4*X4.^2 + ...
                 obj.Q5*X5.^2 + obj.Q6*X6.^2 + ...
                 obj.Q7*X7.^2 + obj.R1*U1.^2 + ...
                 obj.R2*U2.^2 + obj.R3*U3.^2;
@@ -147,20 +147,20 @@ classdef Solver_attitude < dynamicprops
         function calculate_J_U_opt_state_M(obj, k_s)
             %% CAUTION: this interpolant is only valid for Xmesh
             F = griddedInterpolant(...
-                {obj.sr_1, obj.sr_2, obj.sr_3, obj.sr_4,obj.sr_5, obj.sr_6, obj.sr_7}, ...
+                {obj.sr_1, obj.sr_2, obj.sr_3, obj.sr_5, obj.sr_6, obj.sr_7}, ...
                 obj.J_next_states_opt,'linear');
             
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
             [val, U_ID3] = min( obj.J_current_state_fix  + ...
-                F(obj.X1,obj.X2,obj.X3,obj.X4,obj.X5,obj.X6,obj.X7) ...
+                F(obj.X1,obj.X2,obj.X3,obj.X5,obj.X6,obj.X7) ...
                 ,[], obj.dim_U3);
             [val, U_ID2] = min( val, [], obj.dim_U2);   
             [obj.J_next_stages_opt , U_ID1] = min( val, [], obj.dim_U1);   
             
-            obj.U1_Opt(:,:,:,:,:,:,:,k_s) = obj.U_vector(U_ID1);
-            obj.U2_Opt(:,:,:,:,:,:,:,k_s) = obj.U_vector(U_ID2(U_ID1));
-            obj.U1_Opt(:,:,:,:,:,:,:,k_s) = obj.U_vector(U_ID3(U_ID2(U_ID1)));
+            obj.U1_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID1);
+            obj.U2_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID2(U_ID1));
+            obj.U1_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID3(U_ID2(U_ID1)));
             
         end
         
@@ -170,7 +170,7 @@ classdef Solver_attitude < dynamicprops
             obj.X1_next = obj.X1 + obj.h*((obj.J2-obj.J3)/obj.J1*obj.X2.*obj.X3 + u1/obj.J1);
             obj.X2_next = obj.X2 + obj.h*((obj.J3-obj.J1)/obj.J2*obj.X3.*obj.X1 + u2/obj.J2);
             obj.X3_next = obj.X3 + obj.h*((obj.J1-obj.J2)/obj.J3*obj.X1.*obj.X2 + u3/obj.J3);
-            obj.X4_next = obj.X4 + obj.h*(0.5*(-obj.X1.*obj.X7 -obj.X2.*obj.X6 -obj.X3.*obj.X5));
+            %obj.X4_next = obj.X4 + obj.h*(0.5*(-obj.X1.*obj.X7 -obj.X2.*obj.X6 -obj.X3.*obj.X5));
             obj.X5_next = obj.X5 + obj.h*(0.5*(obj.X2.*obj.X7 -obj.X1.*obj.X6 +obj.X3.*obj.X4));
             obj.X6_next = obj.X6 + obj.h*(0.5*(-obj.X3.*obj.X7 +obj.X1.*obj.X5 +obj.X2.*obj.X4));
             obj.X7_next = obj.X7 + obj.h*(0.5*(obj.X3.*obj.X6 -obj.X2.*obj.X5 +obj.X1.*obj.X4));
@@ -213,7 +213,7 @@ classdef Solver_attitude < dynamicprops
             %print time and error
             % note: quaternions deviation from (sum(Q.^2) = 1) at T_final is a measure of error in ode solver
             fprintf(...
-                'Done - Time elapsed for caculations: %f - states max error: %.1g\n',...
+                'Done - Time elapsed for caculations: %f - states max error: %.5g\n',...
                 toc, sqrt((q_squared_sum(end) - 1)))
             
             time_v = linspace(0, T_final, N); %plot time vector
@@ -232,14 +232,14 @@ classdef Solver_attitude < dynamicprops
             xlabel('time (s)')
         end
         
-        function [X1_dot,X2_dot,X3_dot,X4_dot,...
+        function [X1_dot,X2_dot,X3_dot,...
                 X5_dot,X6_dot,X7_dot] = spacecraft_dynamics(obj,x1,x2,x3,x4,x5,x6,u1,u2,u3)
             %returns the derivatives x_dot = f(X,u)
             %J is assumed to be diagonal, J12 = J23 = ... = 0
             X1_dot = (obj.J2-obj.J3)/obj.J1*x2.*x3 + u1/obj.J1;
             X2_dot = (obj.J3-obj.J1)/obj.J2*x3.*x1 + u2/obj.J2;
             X3_dot = (obj.J1-obj.J2)/obj.J3*x1.*x2 + u3/obj.J3;
-            X4_dot = 0.5*(-x1.*x7 -x2.*x6 -x3.*x5);
+            %X4_dot = 0.5*(-x1.*x7 -x2.*x6 -x3.*x5);
             X5_dot = 0.5*(x2.*x7 -x1.*x6 +x3.*x4);
             X6_dot = 0.5*(-x3.*x7 +x1.*x5 +x2.*x4);
             X7_dot = 0.5*(x3.*x6 -x2.*x5 +x1.*x4);
@@ -276,10 +276,10 @@ classdef Solver_attitude < dynamicprops
             
             % Runge-Kutta - 4th order
             % h = dt;
-            k1 = spacecraft_dynamics(obj,x1,x2,x3,x4,x5,x6,u1,u2,u3);
-            k2 = spacecraft_dynamics(spacecraft, (X1 + k1*h/2), U);
-            k3 = spacecraft_dynamics(spacecraft, (X1 + k2*h/2), U);
-            k4 = spacecraft_dynamics(spacecraft, (X1 + k3*h), U);
+            k1 = spacecraft_dynamics_list(spacecraft, X1 , U);
+            k2 = spacecraft_dynamics_list(spacecraft, (X1 + k1*h/2), U);
+            k3 = spacecraft_dynamics_list(spacecraft, (X1 + k2*h/2), U);
+            k4 = spacecraft_dynamics_list(spacecraft, (X1 + k3*h), U);
             
             X2 = X1 + h*(k1 + 2*k2 + 2*k3 + k4);
             
