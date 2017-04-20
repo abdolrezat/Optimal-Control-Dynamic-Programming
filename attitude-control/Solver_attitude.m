@@ -36,6 +36,16 @@ classdef Solver_attitude < dynamicprops
         U2_Opt single
         U3_Opt single
         %-- ranges for grid generation
+        w_min
+        w_max
+        n_mesh_w
+        yaw_min
+        yaw_max
+        pitch_min
+        pitch_max
+        roll_min
+        roll_max
+        n_mesh_q
         sr_1 % state 1 range vector for grid and interpolant generation 
         sr_2 % "
         sr_3 % "
@@ -47,14 +57,45 @@ classdef Solver_attitude < dynamicprops
         cr_2 
         cr_3
         
+        T_final
         h %time step for discrete time system
-
+        N_stage
     end
     
     methods
         %Constructor
         function this = Solver_attitude()
             % states are [w1; w2; w3; q1; q2; q3; q4]
+            if nargin < 1
+                w_min = -2;
+                w_max = 2;
+                n_mesh_w = 11;
+                this.yaw_min = -10; %angles
+                this.yaw_max = 10;
+                this.pitch_min = -10;
+                this.pitch_max = 10;
+                this.roll_min = -10;
+                this.roll_max = 10;
+                this.n_mesh_q = 20;
+                
+                obj.Q1 = 5;
+                obj.Q2 = 5;
+                obj.Q3 = 5;
+                obj.Q4 = 5;
+                obj.Q5 = 5;
+                obj.Q6 = 5;
+                obj.R1 = 0.5;
+                obj.R2 = 0.5;
+                obj.R3 = 0.5;
+                
+                this.T_final = 100;
+                this.h = 0.01;
+            end
+            this.w_min = w_min;
+            this.w_max = w_max;
+            this.n_mesh_w = n_mesh_w;
+            this.N_stage = this.T_final/this.h;
+            
             this.J1 = 2;
             this.J2 = 2.5;
             this.J3 = 3;
@@ -62,32 +103,45 @@ classdef Solver_attitude < dynamicprops
             this.dim_U2 = 8;
             this.dim_U3 = 9;
             this.U_vector = [-0.01 0 0.01];
+            
+            %Preallocation and mesh generation
+            this.sr_1 = linspace(w_min, w_max, n_mesh_w);
+            this.sr_2 = linspace(w_min, w_max, n_mesh_w);
+            this.sr_3 = linspace(w_min, w_max, n_mesh_w);
+            [this.sr_5, this.sr_6, this.sr_7] = mesh_quaternion(this); % generates
+            keyboard
+            [this.X1, this.X2, this.X3, this.X5, this.X6, this.X7] = ...
+                ndgrid(this.sr_1, this.sr_2, this.sr_3, this.sr_5, this.sr_6, this.sr_7);
+            size_Xmesh = size(this.X1);
+            this.U1_Opt = zeros([size_Xmesh,this.N],'single');
+            this.U2_Opt = zeros([size_Xmesh,this.N],'single');
+            this.U3_Opt = zeros([size_Xmesh,this.N],'single');
+            
         end
         
         %Calculation of optimal matrices
         function obj = run(obj)
-            %Preallocation and mesh generation
-            size_Xmesh = size(obj.X1_mesh);
-            
-            obj.U1_Opt = zeros([size_Xmesh,obj.N],'single');
-            obj.U1_Opt = zeros([size_Xmesh,obj.N],'single');
-            obj.U1_Opt = zeros([size_Xmesh,obj.N],'single');
-
+            keyboard
             % calculate cost to reach next stage
             %obj.J_current_state_fix = g_D(obj);
+            fprintf('calculating fixed cost matrix...\n')
             calculate_J_current_state_fix(obj);
             % Calculate and store J*NN = h(xi(N)) for all x(N)
             obj.J_next_states_opt = zeros(size(obj.X1),'single');
             %
+            fprintf('calculating next stage states...\n')
+            
             calculate_states_next(obj);
             %
             %% obj.stage_J_star = H*X;
             %%
-            for k_s=obj.N-1:-1:1
+            fprintf('beginning stage calculation...\n')
+            for k_s=obj.N_stage-1:-1:1
                 tic
                 calculate_J_U_opt_state_M(obj, k_s);
                 fprintf('step %d - %f seconds\n', k_s, toc)
             end
+            fprintf('stage calculation complete.\n')
             
         end
         
@@ -153,7 +207,7 @@ classdef Solver_attitude < dynamicprops
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
             [val, U_ID3] = min( obj.J_current_state_fix  + ...
-                F(obj.X1,obj.X2,obj.X3,obj.X5,obj.X6,obj.X7) ...
+                F({obj.sr_1, obj.sr_2, obj.sr_3, obj.sr_5, obj.sr_6, obj.sr_7}) ...
                 ,[], obj.dim_U3);
             [val, U_ID2] = min( val, [], obj.dim_U2);   
             [obj.J_next_stages_opt , U_ID1] = min( val, [], obj.dim_U1);   
@@ -167,13 +221,14 @@ classdef Solver_attitude < dynamicprops
         function spacecraft_dynamics_taylor_estimate(obj)
             %returns the derivatives x_dot = f(X,u)
             %J is assumed to be diagonal, J12 = J23 = ... = 0
+            x4 = 1 - (obj.X5.^2 + obj.X6.^2 + obj.X7.^2);
             obj.X1_next = obj.X1 + obj.h*((obj.J2-obj.J3)/obj.J1*obj.X2.*obj.X3 + u1/obj.J1);
             obj.X2_next = obj.X2 + obj.h*((obj.J3-obj.J1)/obj.J2*obj.X3.*obj.X1 + u2/obj.J2);
             obj.X3_next = obj.X3 + obj.h*((obj.J1-obj.J2)/obj.J3*obj.X1.*obj.X2 + u3/obj.J3);
             %obj.X4_next = obj.X4 + obj.h*(0.5*(-obj.X1.*obj.X7 -obj.X2.*obj.X6 -obj.X3.*obj.X5));
-            obj.X5_next = obj.X5 + obj.h*(0.5*(obj.X2.*obj.X7 -obj.X1.*obj.X6 +obj.X3.*obj.X4));
-            obj.X6_next = obj.X6 + obj.h*(0.5*(-obj.X3.*obj.X7 +obj.X1.*obj.X5 +obj.X2.*obj.X4));
-            obj.X7_next = obj.X7 + obj.h*(0.5*(obj.X3.*obj.X6 -obj.X2.*obj.X5 +obj.X1.*obj.X4));
+            obj.X5_next = obj.X5 + obj.h*(0.5*(obj.X2.*obj.X7 -obj.X1.*obj.X6 +obj.X3.*x4));
+            obj.X6_next = obj.X6 + obj.h*(0.5*(-obj.X3.*obj.X7 +obj.X1.*obj.X5 +obj.X2.*x4));
+            obj.X7_next = obj.X7 + obj.h*(0.5*(obj.X3.*obj.X6 -obj.X2.*obj.X5 +obj.X1.*x4));
         end
         
         function linear_control_response(spacecraft, X0, T_final, dt)
@@ -282,6 +337,25 @@ classdef Solver_attitude < dynamicprops
             k4 = spacecraft_dynamics_list(spacecraft, (X1 + k3*h), U);
             
             X2 = X1 + h*(k1 + 2*k2 + 2*k3 + k4);
+            
+        end
+        
+        function [sr_5, sr_6, sr_7] = mesh_quaternion(this)
+            s_yaw = linspace(deg2rad(this.yaw_min), deg2rad(this.yaw_max), this.n_mesh_q);
+            s_pitch = linspace(deg2rad(this.pitch_min), deg2rad(this.pitch_max), this.n_mesh_q);
+            s_roll = linspace(deg2rad(this.roll_min), deg2rad(this.roll_max), this.n_mesh_q);
+            
+            angles = [s_yaw(:) s_pitch(:) s_roll(:)];
+            
+            cang = cos( angles/2 );
+            sang = sin( angles/2 );
+            
+            sr_5 = cang(:,1).*sang(:,2).*cang(:,3) + sang(:,1).*cang(:,2).*sang(:,3);
+            sr_6 = cang(:,1).*cang(:,2).*sang(:,3) - sang(:,1).*sang(:,2).*cang(:,3);
+            sr_7 = cang(:,1).*cang(:,2).*cang(:,3) + sang(:,1).*sang(:,2).*sang(:,3);
+            sr_5 = sr_5';
+            sr_6 = sr_6';
+            sr_7 = sr_7';
             
         end
         
