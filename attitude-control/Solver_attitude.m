@@ -60,6 +60,16 @@ classdef Solver_attitude < dynamicprops
         T_final
         h %time step for discrete time system
         N_stage
+        
+        Q1
+        Q2
+        Q3
+        Q5
+        Q6
+        Q7
+        R1
+        R2
+        R3
     end
     
     methods
@@ -78,15 +88,15 @@ classdef Solver_attitude < dynamicprops
                 this.roll_max = 10;
                 this.n_mesh_q = 20;
                 
-                obj.Q1 = 5;
-                obj.Q2 = 5;
-                obj.Q3 = 5;
-                obj.Q4 = 5;
-                obj.Q5 = 5;
-                obj.Q6 = 5;
-                obj.R1 = 0.5;
-                obj.R2 = 0.5;
-                obj.R3 = 0.5;
+                this.Q1 = 5;
+                this.Q2 = 5;
+                this.Q3 = 5;
+                this.Q4 = 5;
+                this.Q5 = 5;
+                this.Q6 = 5;
+                this.R1 = 0.5;
+                this.R2 = 0.5;
+                this.R3 = 0.5;
                 
                 this.T_final = 100;
                 this.h = 0.01;
@@ -113,9 +123,9 @@ classdef Solver_attitude < dynamicprops
             [this.X1, this.X2, this.X3, this.X5, this.X6, this.X7] = ...
                 ndgrid(this.sr_1, this.sr_2, this.sr_3, this.sr_5, this.sr_6, this.sr_7);
             size_Xmesh = size(this.X1);
-            this.U1_Opt = zeros([size_Xmesh,this.N],'single');
-            this.U2_Opt = zeros([size_Xmesh,this.N],'single');
-            this.U3_Opt = zeros([size_Xmesh,this.N],'single');
+            this.U1_Opt = zeros([size_Xmesh,this.N_stage],'single');
+            this.U2_Opt = zeros([size_Xmesh,this.N_stage],'single');
+            this.U3_Opt = zeros([size_Xmesh,this.N_stage],'single');
             
         end
         
