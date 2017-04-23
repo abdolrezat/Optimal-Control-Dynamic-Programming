@@ -91,7 +91,6 @@ classdef Solver_attitude < dynamicprops
                 this.Q1 = 5;
                 this.Q2 = 5;
                 this.Q3 = 5;
-                this.Q4 = 5;
                 this.Q5 = 5;
                 this.Q6 = 5;
                 this.R1 = 0.5;
