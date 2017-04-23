@@ -50,9 +50,9 @@ classdef Solver_attitude < dynamicprops
         sr_2 % "
         sr_3 % "
 %         sr_4 % "
-        sr_5 % "
-        sr_6 % "
-        sr_7 % "
+        s_yaw % state 5
+        s_pitch % " 6
+        s_roll % " 7
         cr_1 % control input 1 range vector for grid generation
         cr_2 
         cr_3
@@ -70,6 +70,19 @@ classdef Solver_attitude < dynamicprops
         R1
         R2
         R3
+        
+        X1V single
+        X2V single
+        X3V single
+        cang_x5 single
+        sang_x5 single
+        cang_x6 single
+        sang_x6 single
+        cang_x7 single
+        sang_x7 single
+        U1V single
+        U2V single
+        U3V single
     end
     
     methods
@@ -93,12 +106,13 @@ classdef Solver_attitude < dynamicprops
                 this.Q3 = 5;
                 this.Q5 = 5;
                 this.Q6 = 5;
+                this.Q7 = 5;
                 this.R1 = 0.5;
                 this.R2 = 0.5;
                 this.R3 = 0.5;
                 
-                this.T_final = 100;
-                this.h = 0.01;
+                this.T_final = 1;
+                this.h = 1;
             end
             this.w_min = w_min;
             this.w_max = w_max;
@@ -117,24 +131,28 @@ classdef Solver_attitude < dynamicprops
             this.sr_1 = linspace(w_min, w_max, n_mesh_w);
             this.sr_2 = linspace(w_min, w_max, n_mesh_w);
             this.sr_3 = linspace(w_min, w_max, n_mesh_w);
-            [this.sr_5, this.sr_6, this.sr_7] = mesh_quaternion(this); % generates
-            keyboard
-            [this.X1, this.X2, this.X3, this.X5, this.X6, this.X7] = ...
-                ndgrid(this.sr_1, this.sr_2, this.sr_3, this.sr_5, this.sr_6, this.sr_7);
-            size_Xmesh = size(this.X1);
-            this.U1_Opt = zeros([size_Xmesh,this.N_stage],'single');
-            this.U2_Opt = zeros([size_Xmesh,this.N_stage],'single');
-            this.U3_Opt = zeros([size_Xmesh,this.N_stage],'single');
+            
+            this.s_yaw = linspace(deg2rad(this.yaw_min), deg2rad(this.yaw_max), this.n_mesh_q);
+            this.s_pitch = linspace(deg2rad(this.pitch_min), deg2rad(this.pitch_max), this.n_mesh_q);
+            this.s_roll = linspace(deg2rad(this.roll_min), deg2rad(this.roll_max), this.n_mesh_q);
+            
+            size_Umat = [n_mesh_w,n_mesh_w,n_mesh_w,...
+                this.n_mesh_q,this.n_mesh_q,this.n_mesh_q,3,this.N_stage];
+            this.U1_Opt = zeros(size_Umat,'uint8');
+            this.U2_Opt = zeros(size_Umat,'uint8');
+            this.U3_Opt = zeros(size_Umat,'uint8');
             
         end
         
         %Calculation of optimal matrices
         function obj = run(obj)
             keyboard
+            obj.reshape_states();
+            keyboard
             % calculate cost to reach next stage
             %obj.J_current_state_fix = g_D(obj);
             fprintf('calculating fixed cost matrix...\n')
-            calculate_J_current_state_fix(obj);
+            calculate_J_current_state_fix_shaped(obj);
             % Calculate and store J*NN = h(xi(N)) for all x(N)
             obj.J_next_states_opt = zeros(size(obj.X1),'single');
             %
@@ -165,6 +183,15 @@ classdef Solver_attitude < dynamicprops
                 obj.Q5*obj.X5.^2 + obj.Q6*obj.X6.^2 + ...
                 obj.Q7*obj.X7.^2 + obj.R1*obj.U1.^2 + ...
                 obj.R2*obj.U2.^2 + obj.R3*obj.U3.^2;
+        end
+        
+        function calculate_J_current_state_fix_shaped(obj)
+            obj.J_current_state_fix = obj.Q1*obj.X1V.^2 + obj.Q2*obj.X2V.^2 + ...
+                obj.Q3*obj.X3V.^2 + ...  % obj.Q4*obj.X4.^2 + ...
+                obj.Q5*(obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7).^2 + ...
+                obj.Q6*(obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7).^2 + ...
+                obj.Q7*(obj.cang_x5.*obj.cang_x6.*obj.cang_x7 + obj.sang_x5.*obj.sang_x6.*obj.sang_x7).^2 + ...
+                obj.R1*obj.U1V.^2 + obj.R2*obj.U2V.^2 + obj.R3*obj.U3V.^2;
         end
         
         function calculate_states_next(obj)
@@ -350,9 +377,9 @@ classdef Solver_attitude < dynamicprops
         end
         
         function [sr_5, sr_6, sr_7] = mesh_quaternion(this)
-            s_yaw = linspace(deg2rad(this.yaw_min), deg2rad(this.yaw_max), this.n_mesh_q);
-            s_pitch = linspace(deg2rad(this.pitch_min), deg2rad(this.pitch_max), this.n_mesh_q);
-            s_roll = linspace(deg2rad(this.roll_min), deg2rad(this.roll_max), this.n_mesh_q);
+            obj.s_yaw = linspace(deg2rad(this.yaw_min), deg2rad(this.yaw_max), this.n_mesh_q);
+            obj.s_pitch = linspace(deg2rad(this.pitch_min), deg2rad(this.pitch_max), this.n_mesh_q);
+            obj.s_roll = linspace(deg2rad(this.roll_min), deg2rad(this.roll_max), this.n_mesh_q);
             
             angles = [s_yaw(:) s_pitch(:) s_roll(:)];
             
@@ -366,6 +393,33 @@ classdef Solver_attitude < dynamicprops
             sr_6 = sr_6';
             sr_7 = sr_7';
             
+        end
+        
+        function reshape_states(obj)
+            n_mesh_w1 = length(obj.sr_1);
+            n_mesh_w2 = length(obj.sr_2);
+            n_mesh_w3 = length(obj.sr_3);
+            
+            obj.X1V = reshape(obj.sr_1, [n_mesh_w1 1]);
+            obj.X2V = reshape(obj.sr_2, [1 n_mesh_w2]);
+            obj.X3V = reshape(obj.sr_3, [1 1 n_mesh_w3]);
+            
+            n_mesh_yaw = length(obj.s_yaw);
+            obj.cang_x5 = reshape( cos( obj.s_yaw/2 ), [1 1 1 n_mesh_yaw 1 1]);
+            obj.sang_x5 = reshape( sin( obj.s_yaw/2 ), [1 1 1 n_mesh_yaw 1 1]);
+            
+            n_mesh_pitch = length(obj.s_pitch);
+            obj.cang_x6 = reshape( cos( obj.s_pitch/2 ), [1 1 1 1 n_mesh_pitch 1]);
+            obj.sang_x6 = reshape( sin( obj.s_pitch/2 ), [1 1 1 1 n_mesh_pitch 1]);
+            
+            n_mesh_roll = length(obj.s_roll);
+            obj.cang_x7 = reshape( cos( obj.s_roll/2 ), [1 1 1 1 n_mesh_roll]);
+            obj.sang_x7 = reshape( sin( obj.s_roll/2 ), [1 1 1 1 n_mesh_roll]);
+           
+            n_mesh_u = length(obj.U_vector);
+            obj.U1V = reshape(obj.U_vector, [1 1 1 1 1 1 n_mesh_u]);
+            obj.U2V = reshape(obj.U_vector, [1 1 1 1 1 1 1 n_mesh_u]);
+            obj.U3V = reshape(obj.U_vector, [1 1 1 1 1 1 1 1 n_mesh_u]);
         end
         
     end
