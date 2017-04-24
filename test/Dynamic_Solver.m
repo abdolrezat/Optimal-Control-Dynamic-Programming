@@ -221,11 +221,12 @@ classdef Dynamic_Solver < handle
                 plot3( this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_s) )
             else
                 figure
-                for i=1:length(k_s)
+                p = mesh(this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_s(1)) );
+                for i=2:length(k_s)
                     k_temp = k_s(i);
-                    plot3( this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_temp) )
+                    p.ZData =  this.u_star(:,:,k_s(i));
                     title(['Stage ',num2str(k_temp)]);
-                    pause(0.5)
+                    pause(0.2)
                 end
             end
         end
