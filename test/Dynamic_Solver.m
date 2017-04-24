@@ -34,6 +34,7 @@ classdef Dynamic_Solver < handle
         J_check
         J_current_state_check 
         J_opt_nextstate_check 
+        J_F_next_check
         X_next_M1_check 
         X_next_M2_check
         checkstagesXJF
@@ -183,14 +184,15 @@ classdef Dynamic_Solver < handle
 %             [X_next_M1,X_next_M2] = a_D_M(obj);
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
-            
+            J_F_next = F(obj.X_next_M1, obj.X_next_M2);
             % % Add up J's % % 
             [obj.J_opt_nextstate, obj.u_star_idx] = ...
-                min(F(obj.X_next_M1, obj.X_next_M2) + obj.J_current_state,[],3);
+                min(J_F_next + obj.J_current_state,[],3);
             % % % % % % % % % %
             if(obj.checkstagesXJF)
                 obj.J_current_state_check(:,:,k) = obj.J_current_state(50:55,52:57,105);
-%                 obj.J_opt_nextstate_check(:,:,k) = obj.J_opt_nextstate(50:55,52:57,105);
+                obj.J_opt_nextstate_check(:,:,k) = obj.J_opt_nextstate(50:55,52:57);
+                obj.J_F_next_check(:,:,k) = J_F_next(50:55,52:57,105);
                 obj.X_next_M1_check(:,:,k) = obj.X_next_M1(50:55,52:57,105);
                 obj.X_next_M2_check(:,:,k)  = obj.X_next_M2(50:55,52:57,105);
 %                 obj.J_check(:,:,k) = obj.J_opt_nextstate(50:55,52:57,105);
