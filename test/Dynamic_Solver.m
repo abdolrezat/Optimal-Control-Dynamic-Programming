@@ -43,14 +43,11 @@ classdef Dynamic_Solver < handle
     methods
         
         function obj = Dynamic_Solver()
-            obj.Q = [0.25, 0; 0, 0.05]*5;
-            obj.checkstagesXJF = 1;
-            obj.Q = [0.25, 0; 0, 0.05];
             obj.checkstagesXJF = 1;
             obj.Q = [0.25, 0; 0, 0.05];
             obj.A = [0.9974, 0.0539; -0.1078, 1.1591];
             obj.B = [0.0013; 0.0539];
-            obj.R = 0.05*5;
+            obj.R = 0.05;
             obj.N = 200;
             obj.S = 2;
             obj.C = 1;
@@ -120,7 +117,6 @@ classdef Dynamic_Solver < handle
             J = U;
             X(:,1) = X0;
             for k=1:obj.N-1
-                
                 Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
                     obj.u_star(:,:,k),'linear');
                 
@@ -132,9 +128,10 @@ classdef Dynamic_Solver < handle
                 
                 X(:,k+1) = a_D(obj,X(1,k),X(2,k),U(k));
                 % X(:,k+1) = obj.A*X(:,k) + obj.B*U(k);
+                
             end
-            k = k+1;
-            %-- Optimal Control Input u*
+%             k = k+1;
+%             %-- Optimal Control Input u*
 %             Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
 %                 obj.u_star(:,:,k),'linear');
 %             U(k) = Fu(X(1,k),X(2,k));
@@ -218,10 +215,19 @@ classdef Dynamic_Solver < handle
         end
         
         function plot_u_star(this,k_s)
-           
-            figure
-            plot3( this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_s) )
             
+            if length(k_s) == 1
+                figure
+                plot3( this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_s) )
+            else
+                figure
+                for i=1:length(k_s)
+                    k_temp = k_s(i);
+                    plot3( this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_temp) )
+                    title(['Stage ',num2str(k_temp)]);
+                    pause(0.5)
+                end
+            end
         end
     end
     
