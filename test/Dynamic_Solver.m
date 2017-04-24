@@ -51,7 +51,7 @@ classdef Dynamic_Solver < handle
             obj.A = [0.9974, 0.0539; -0.1078, 1.1591];
             obj.B = [0.0013; 0.0539];
             obj.R = 0.05*5;
-            obj.N = 130;
+            obj.N = 200;
             obj.S = 2;
             obj.C = 1;
             %obj.X = zeros(obj.S,obj.N);
@@ -217,6 +217,12 @@ classdef Dynamic_Solver < handle
             obj.X_next_M2_check(:,:,k)
         end
         
+        function plot_u_star(this,k_s)
+           
+            figure
+            plot3( this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_s) )
+            
+        end
     end
     
     methods (Static)
