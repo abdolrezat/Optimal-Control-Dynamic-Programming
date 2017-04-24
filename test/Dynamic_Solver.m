@@ -215,6 +215,9 @@ classdef Dynamic_Solver < handle
         end
         
         function plot_u_star(this,k_s)
+            if nargin < 2
+                k_s = 1:this.N-2;
+            end
             
             if length(k_s) == 1
                 figure
@@ -222,6 +225,9 @@ classdef Dynamic_Solver < handle
             else
                 figure
                 p = mesh(this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_s(1)) );
+                colormap winter
+                % not allowing axis limits to change automatically
+                axis manual
                 for i=2:length(k_s)
                     k_temp = k_s(i);
                     p.ZData =  this.u_star(:,:,k_s(i));
