@@ -272,7 +272,7 @@ classdef Solver_attitude < dynamicprops
             
             obj.U1_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID1);
             obj.U2_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID2(U_ID1));
-            obj.U1_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID3(U_ID2(U_ID1)));
+            obj.U3_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID3(U_ID2(U_ID1)));
             
         end
         
