@@ -155,10 +155,9 @@ classdef Solver_attitude < dynamicprops
             fprintf('calculating fixed cost matrix...\n')
             calculate_J_current_state_fix_shaped(obj);
             % Calculate and store J*NN = h(xi(N)) for all x(N)
-            obj.J_next_states_opt = zeros(size(obj.size_state_mat),'single');
+            obj.J_next_states_opt = zeros(obj.size_state_mat,'single');
             %
             fprintf('calculating next stage states...\n')
-            keyboard
             calculate_states_next(obj);
             
             %
@@ -258,8 +257,9 @@ classdef Solver_attitude < dynamicprops
         
         function calculate_J_U_opt_state_M(obj, k_s)
             %% CAUTION: this interpolant is only valid for Xmesh
+            keyboard
             F = griddedInterpolant(...
-                {obj.sr_1, obj.sr_2, obj.sr_3, obj.sr_5, obj.sr_6, obj.sr_7}, ...
+                {obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll}, ...
                 obj.J_next_states_opt,'linear');
             
             %find J final for each state and control (X,U) and add it to next state
@@ -327,7 +327,6 @@ classdef Solver_attitude < dynamicprops
             r3 = atan2( 2.*(obj.X6_next.*obj.X7_next + x4.*obj.X5_next), ...
                 x4.^2 - obj.X5_next.^2 - obj.X6_next.^2 + obj.X7_next.^2 );
             
-            keyboard;
             obj.X5_next = reshape(r1, size_X5);
             obj.X6_next = reshape(r2, size_X5);
             obj.X7_next = reshape(r3, size_X5);
