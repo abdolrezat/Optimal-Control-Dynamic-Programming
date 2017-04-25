@@ -17,6 +17,7 @@ classdef Dynamic_Solver < handle
         x_max
         u_min
         u_max
+        s_r
         dx
         du
         u_star
@@ -64,13 +65,13 @@ classdef Dynamic_Solver < handle
         function obj = run(obj)
             % K = 0
             % Calculate and store J*NN = h(xi(N)) for all x(N)
-            s_r = single(linspace(obj.x_min,obj.x_max,obj.dx));
-            [obj.X1_mesh, obj.X2_mesh] = ndgrid(s_r, s_r);
+            obj.s_r = single(linspace(obj.x_min,obj.x_max,obj.dx));
+            [obj.X1_mesh, obj.X2_mesh] = ndgrid(obj.s_r, obj.s_r);
             
             U_mesh = linspace(obj.u_min, obj.u_max, obj.du);
             
             %3d grid for voctorization in calculation of C_star_M
-            [obj.X1_mesh_3D,obj.X2_mesh_3D,obj.U_mesh_3D] = ndgrid(s_r,s_r,U_mesh);
+            [obj.X1_mesh_3D,obj.X2_mesh_3D,obj.U_mesh_3D] = ndgrid(obj.s_r,obj.s_r,U_mesh);
             %
             obj.J_star = zeros([size(obj.X1_mesh),obj.N],'single');
 %             obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
@@ -175,7 +176,7 @@ classdef Dynamic_Solver < handle
         end
         
         function J_state_M(obj,k)
-            F = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
+            F = griddedInterpolant({obj.s_r,obj.s_r},...
                 obj.J_opt_nextstate,'linear');
             %get next state X
 %             [X_next_M1,X_next_M2] = a_D_M(obj);

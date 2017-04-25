@@ -7,34 +7,36 @@ classdef Solver_attitude < dynamicprops
         J1
         J2
         J3
+        size_state_mat
         dim_U1 % dimension number of U, after the 7 state variables
-        dim_U2 
-        dim_U3 
+        dim_U2
+        dim_U3
         U_vector % values that are applied as control inputs
         % big data
         J_next_states_opt single  % optimum values of J will be stored in this matrix and recalled each stage
         J_current_state_fix single  % values of cost to reach next stage, always fixed in Time Invariant system
-        X1 single % (s+c)-dimensional grid of state 1
-        X2 single 
-        X3 single 
-        X4 single 
-        X5 single 
-        X6 single 
-        X7 single 
-        U1 single  % (s+c)-dimensional grid of control input 1
-        U2 single 
-        U3 single 
+        %obsolete, use X1V,etc... instead
+        %         X1 single % (s+c)-dimensional grid of state 1
+        %         X2 single
+        %         X3 single
+        %         X4 single
+        %         X5 single
+        %         X6 single
+        %         X7 single
+        %         U1 single  % (s+c)-dimensional grid of control input 1
+        %         U2 single
+        %         U3 single
         X1_next single  % (s+c)-dim grid of next state-1
-        X2_next single 
-        X3_next single 
-%         X4_next single 
-        X5_next single 
-        X6_next single 
-        X7_next single 
+        X2_next single
+        X3_next single
+        %         X4_next single
+        X5_next single
+        X6_next single
+        X7_next single
         
-        U1_Opt single  % (s-dim x k) grid of optimal values U* for every stage and states
-        U2_Opt single
-        U3_Opt single
+        U1_Opt   % (s-dim x k) grid of optimal values U* for every stage and states
+        U2_Opt
+        U3_Opt
         %-- ranges for grid generation
         w_min
         w_max
@@ -46,15 +48,15 @@ classdef Solver_attitude < dynamicprops
         roll_min
         roll_max
         n_mesh_q
-        sr_1 % state 1 range vector for grid and interpolant generation 
+        sr_1 % state 1 range vector for grid and interpolant generation
         sr_2 % "
         sr_3 % "
-%         sr_4 % "
+        %         sr_4 % "
         s_yaw % state 5
         s_pitch % " 6
         s_roll % " 7
         cr_1 % control input 1 range vector for grid generation
-        cr_2 
+        cr_2
         cr_3
         
         T_final
@@ -99,7 +101,7 @@ classdef Solver_attitude < dynamicprops
                 this.pitch_max = 10;
                 this.roll_min = -10;
                 this.roll_max = 10;
-                this.n_mesh_q = 20;
+                this.n_mesh_q = 10;
                 
                 this.Q1 = 5;
                 this.Q2 = 5;
@@ -112,7 +114,7 @@ classdef Solver_attitude < dynamicprops
                 this.R3 = 0.5;
                 
                 this.T_final = 1;
-                this.h = 1;
+                this.h = 0.05;
             end
             this.w_min = w_min;
             this.w_max = w_max;
@@ -136,8 +138,9 @@ classdef Solver_attitude < dynamicprops
             this.s_pitch = linspace(deg2rad(this.pitch_min), deg2rad(this.pitch_max), this.n_mesh_q);
             this.s_roll = linspace(deg2rad(this.roll_min), deg2rad(this.roll_max), this.n_mesh_q);
             
-            size_Umat = [n_mesh_w,n_mesh_w,n_mesh_w,...
-                this.n_mesh_q,this.n_mesh_q,this.n_mesh_q,3,this.N_stage];
+            this.size_state_mat = [n_mesh_w,n_mesh_w,n_mesh_w,...
+                this.n_mesh_q,this.n_mesh_q,this.n_mesh_q];
+            size_Umat = [this.size_state_mat,3,this.N_stage];
             this.U1_Opt = zeros(size_Umat,'uint8');
             this.U2_Opt = zeros(size_Umat,'uint8');
             this.U3_Opt = zeros(size_Umat,'uint8');
@@ -146,19 +149,18 @@ classdef Solver_attitude < dynamicprops
         
         %Calculation of optimal matrices
         function obj = run(obj)
-            keyboard
             obj.reshape_states();
-            keyboard
             % calculate cost to reach next stage
             %obj.J_current_state_fix = g_D(obj);
             fprintf('calculating fixed cost matrix...\n')
             calculate_J_current_state_fix_shaped(obj);
             % Calculate and store J*NN = h(xi(N)) for all x(N)
-            obj.J_next_states_opt = zeros(size(obj.X1),'single');
+            obj.J_next_states_opt = zeros(size(obj.size_state_mat),'single');
             %
             fprintf('calculating next stage states...\n')
-            
+            keyboard
             calculate_states_next(obj);
+            
             %
             %% obj.stage_J_star = H*X;
             %%
@@ -188,10 +190,30 @@ classdef Solver_attitude < dynamicprops
         function calculate_J_current_state_fix_shaped(obj)
             obj.J_current_state_fix = obj.Q1*obj.X1V.^2 + obj.Q2*obj.X2V.^2 + ...
                 obj.Q3*obj.X3V.^2 + ...  % obj.Q4*obj.X4.^2 + ...
-                obj.Q5*(obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7).^2 + ...
-                obj.Q6*(obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7).^2 + ...
-                obj.Q7*(obj.cang_x5.*obj.cang_x6.*obj.cang_x7 + obj.sang_x5.*obj.sang_x6.*obj.sang_x7).^2 + ...
+                obj.Q5*(obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7).^2 + ...
+                obj.Q6*(obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7).^2 + ...
+                obj.Q7*(obj.sang_x5.*obj.cang_x6.*obj.cang_x7 - obj.cang_x5.*obj.sang_x6.*obj.sang_x7).^2 + ...
                 obj.R1*obj.U1V.^2 + obj.R2*obj.U2V.^2 + obj.R3*obj.U3V.^2;
+            %%
+            %q's are defined as follows:
+            %x4 = q4 as defined in Kirk Control Theory, q1 by MATLAB
+            %definition
+            %(obj.cang_x5.*obj.cang_x6.*obj.cang_x7 + obj.sang_x5.*obj.sang_x6.*obj.sang_x7)
+            
+            %x5 = q3 as defined in Kirk Control Theory, q2 by MATLAB
+            %definition
+            %(obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7)
+            
+            %x6 = q2 as defined in Kirk Control Theory, q3 by MATLAB
+            %definition
+            %%(obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7)
+            
+            %x7 = q1 as defined in Kirk Control Theory, q4 by MATLAB
+            %definition
+            %(obj.sang_x5.*obj.cang_x6.*obj.cang_x7 - obj.cang_x5.*obj.sang_x6.*obj.sang_x7)
+            
+            %%
+            
         end
         
         function calculate_states_next(obj)
@@ -243,10 +265,10 @@ classdef Solver_attitude < dynamicprops
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
             [val, U_ID3] = min( obj.J_current_state_fix  + ...
-                F({obj.sr_1, obj.sr_2, obj.sr_3, obj.sr_5, obj.sr_6, obj.sr_7}) ...
-                ,[], obj.dim_U3);
-            [val, U_ID2] = min( val, [], obj.dim_U2);   
-            [obj.J_next_stages_opt , U_ID1] = min( val, [], obj.dim_U1);   
+                F(obj.X1_next,obj.X2_next,obj.X3_next,obj.X5_next,obj.X6_next,obj.X7_next), ...
+                [], obj.dim_U3);
+            [val, U_ID2] = min( val, [], obj.dim_U2);
+            [obj.J_next_stages_opt , U_ID1] = min( val, [], obj.dim_U1);
             
             obj.U1_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID1);
             obj.U2_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID2(U_ID1));
@@ -257,14 +279,60 @@ classdef Solver_attitude < dynamicprops
         function spacecraft_dynamics_taylor_estimate(obj)
             %returns the derivatives x_dot = f(X,u)
             %J is assumed to be diagonal, J12 = J23 = ... = 0
-            x4 = 1 - (obj.X5.^2 + obj.X6.^2 + obj.X7.^2);
-            obj.X1_next = obj.X1 + obj.h*((obj.J2-obj.J3)/obj.J1*obj.X2.*obj.X3 + u1/obj.J1);
-            obj.X2_next = obj.X2 + obj.h*((obj.J3-obj.J1)/obj.J2*obj.X3.*obj.X1 + u2/obj.J2);
-            obj.X3_next = obj.X3 + obj.h*((obj.J1-obj.J2)/obj.J3*obj.X1.*obj.X2 + u3/obj.J3);
+            x4 = 1 - ((obj.sang_x5.*obj.cang_x6.*obj.cang_x7 - obj.cang_x5.*obj.sang_x6.*obj.sang_x7).^2 + ...
+                (obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7).^2 + ...
+                (obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7).^2);
+            
+            obj.X1_next = obj.X1V + obj.h*((obj.J2-obj.J3)/obj.J1*obj.X2V.*obj.X3V   +  obj.U1V/obj.J1);
+            obj.X2_next = obj.X2V + obj.h*((obj.J3-obj.J1)/obj.J2*obj.X3V.*obj.X1V   +  obj.U2V/obj.J2);
+            obj.X3_next = obj.X3V + obj.h*((obj.J1-obj.J2)/obj.J3*obj.X1V.*obj.X2V   +  obj.U3V/obj.J3);
             %obj.X4_next = obj.X4 + obj.h*(0.5*(-obj.X1.*obj.X7 -obj.X2.*obj.X6 -obj.X3.*obj.X5));
-            obj.X5_next = obj.X5 + obj.h*(0.5*(obj.X2.*obj.X7 -obj.X1.*obj.X6 +obj.X3.*x4));
-            obj.X6_next = obj.X6 + obj.h*(0.5*(-obj.X3.*obj.X7 +obj.X1.*obj.X5 +obj.X2.*x4));
-            obj.X7_next = obj.X7 + obj.h*(0.5*(obj.X3.*obj.X6 -obj.X2.*obj.X5 +obj.X1.*x4));
+            obj.X5_next = (obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7) + ...
+                obj.h*(0.5*(obj.X2V.*(obj.sang_x5.*obj.cang_x6.*obj.cang_x7 - obj.cang_x5.*obj.sang_x6.*obj.sang_x7) ...
+                -obj.X1V.*(obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7) ...
+                +obj.X3V.*x4));
+            
+            obj.X6_next = (obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7) + ...
+                obj.h*(0.5*(-obj.X3V.*(obj.sang_x5.*obj.cang_x6.*obj.cang_x7 - obj.cang_x5.*obj.sang_x6.*obj.sang_x7) ...
+                +obj.X1V.*(obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7) ...
+                +obj.X2V.*x4));
+            
+            obj.X7_next = (obj.sang_x5.*obj.cang_x6.*obj.cang_x7 - obj.cang_x5.*obj.sang_x6.*obj.sang_x7) + ...
+                obj.h*(0.5*(obj.X3V.*(obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7) ...
+                -obj.X2V.*(obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7) ...
+                +obj.X1V.*x4));
+            
+            %x4_next
+            x4 = x4 + obj.h*(0.5*(-obj.X1V.*(obj.sang_x5.*obj.cang_x6.*obj.cang_x7 - obj.cang_x5.*obj.sang_x6.*obj.sang_x7) ...
+                -obj.X2V.*(obj.cang_x5.*obj.sang_x6.*obj.cang_x7 + obj.sang_x5.*obj.cang_x6.*obj.sang_x7) ...
+                -obj.X3V.*(obj.cang_x5.*obj.cang_x6.*obj.sang_x7 - obj.sang_x5.*obj.sang_x6.*obj.cang_x7)));
+            %
+            %
+            size_X5 = size(x4); %will be used in reshaping yaw, pitch, roll new to original n-D matrix
+            
+            x4 = x4(:);
+            obj.X5_next = obj.X5_next(:);
+            obj.X6_next = obj.X6_next(:);
+            obj.X7_next = obj.X7_next(:);
+            Qsquared_sum = sqrt(x4.^2 + obj.X5_next.^2 + obj.X6_next.^2 + obj.X7_next.^2);
+            
+            x4 = x4./Qsquared_sum;
+            obj.X5_next = obj.X5_next./Qsquared_sum;
+            obj.X6_next = obj.X6_next./Qsquared_sum;
+            obj.X7_next = obj.X7_next./Qsquared_sum;
+            
+            r1 = atan2( 2.*(obj.X5_next.*obj.X6_next + x4.*obj.X7_next), ...
+                x4.^2 + obj.X5_next.^2 - obj.X6_next.^2 - obj.X7_next.^2 );
+            r2 = asin( -2.*(obj.X5_next.*obj.X7_next - x4.*obj.X6_next) );
+            r3 = atan2( 2.*(obj.X6_next.*obj.X7_next + x4.*obj.X5_next), ...
+                x4.^2 - obj.X5_next.^2 - obj.X6_next.^2 + obj.X7_next.^2 );
+            
+            keyboard;
+            obj.X5_next = reshape(r1, size_X5);
+            obj.X6_next = reshape(r2, size_X5);
+            obj.X7_next = reshape(r3, size_X5);
+            
+            
         end
         
         function linear_control_response(spacecraft, X0, T_final, dt)
@@ -413,9 +481,9 @@ classdef Solver_attitude < dynamicprops
             obj.sang_x6 = reshape( sin( obj.s_pitch/2 ), [1 1 1 1 n_mesh_pitch 1]);
             
             n_mesh_roll = length(obj.s_roll);
-            obj.cang_x7 = reshape( cos( obj.s_roll/2 ), [1 1 1 1 n_mesh_roll]);
-            obj.sang_x7 = reshape( sin( obj.s_roll/2 ), [1 1 1 1 n_mesh_roll]);
-           
+            obj.cang_x7 = reshape( cos( obj.s_roll/2 ), [1 1 1 1 1 n_mesh_roll]);
+            obj.sang_x7 = reshape( sin( obj.s_roll/2 ), [1 1 1 1 1 n_mesh_roll]);
+            
             n_mesh_u = length(obj.U_vector);
             obj.U1V = reshape(obj.U_vector, [1 1 1 1 1 1 n_mesh_u]);
             obj.U2V = reshape(obj.U_vector, [1 1 1 1 1 1 1 n_mesh_u]);
