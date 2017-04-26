@@ -391,7 +391,7 @@ classdef Solver_attitude < dynamicprops
                 U(:,k_stage) = -K*qe - C*w;
                 X(:,k_stage+1) = next_stage_states(spacecraft, [w',q'], U(:,k_stage)', dt);
             end
-            q_squared_sum = X(4,:).^2 + X(5,:).^2 + X(6,:).^2 + X(7,:).^2; %check quaternions
+            q_squared_sum = sqrt(X(4,:).^2 + X(5,:).^2 + X(6,:).^2 + X(7,:).^2); %check quaternions
             %print time and error
             % note: quaternions deviation from (sum(Q.^2) = 1) at T_final is a measure of error in ode solver
             fprintf(...
@@ -407,10 +407,11 @@ classdef Solver_attitude < dynamicprops
             plot(time_v, U(3,:),'--')
             grid on
             %plot states
-            for n_state = 1:7
+            for n_state = [1 2 3 5 6 7]
                 plot(time_v, X(n_state, 1:end-1))
             end
-            legend('u1','u2','u3','x1','x2','x3','x4','x5','x6','x7')
+            legend('u1','u2','u3','x1','x2','x3',... %'x4',
+                'x5','x6','x7')
             xlabel('time (s)')
         end
         
