@@ -13,8 +13,9 @@ classdef Solver_attitude < dynamicprops
         dim_U3
         U_vector % values that are applied as control inputs
         % big data
-        J_next_states_opt single  % optimum values of J will be stored in this matrix and recalled each stage
+        %J_next_states_opt single  % optimum values of J will be stored in this matrix and recalled each stage
         J_current_state_fix single  % values of cost to reach next stage, always fixed in Time Invariant system
+        F % gridded Interpolant holding values of "J_next_states_opt"
         %obsolete, use X1V,etc... instead
         %         X1 single % (s+c)-dimensional grid of state 1
         %         X2 single
@@ -159,7 +160,10 @@ classdef Solver_attitude < dynamicprops
             fprintf('calculating fixed cost matrix...\n')
             calculate_J_current_state_fix_shaped(obj);
             % Calculate and store J*NN = h(xi(N)) for all x(N)
-            obj.J_next_states_opt = zeros(obj.size_state_mat,'single');
+            obj.F = griddedInterpolant(...
+                {obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll}, ...
+                zeros(obj.size_state_mat,'single'),'linear');
+            
             %
             fprintf('calculating next stage states...\n')
             calculate_states_next(obj);
@@ -261,10 +265,6 @@ classdef Solver_attitude < dynamicprops
         
         function calculate_J_U_opt_state_M(obj, k_s)
             %% CAUTION: this interpolant is only valid for Xmesh
-            F = griddedInterpolant(...
-                {obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll}, ...
-                obj.J_next_states_opt,'linear');
-            
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
 %             nq = obj.n_mesh_q;
@@ -279,7 +279,7 @@ classdef Solver_attitude < dynamicprops
 %                 repmat(obj.X7_next,[1 1 1 1 1 1 nu nu nu])), ... %X7_next size = nw x nw x nw x nq x nq x nq
 %                 [], obj.dim_U3);
             [val, U_ID3] = min( obj.J_current_state_fix  + ...
-                F(obj.X1_next,... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
+                obj.F(obj.X1_next,... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
                 obj.X2_next,... %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
                 obj.X3_next,... %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
                 obj.X5_next,... %X5_next size = nw x nw x nw x nq x nq x nq
@@ -287,7 +287,7 @@ classdef Solver_attitude < dynamicprops
                 obj.X7_next), ... %X7_next size = nw x nw x nw x nq x nq x nq
                 [], obj.dim_U3);
             [val, U_ID2] = min( val, [], obj.dim_U2);
-            [obj.J_next_states_opt , U_ID1] = min( val, [], obj.dim_U1);
+            [obj.F.Values, U_ID1] = min( val, [], obj.dim_U1);
             
             obj.U1_Opt(:,:,:,:,:,:,k_s) = U_ID1;
             obj.U2_Opt(:,:,:,:,:,:,k_s) = U_ID2(U_ID1);

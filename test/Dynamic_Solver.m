@@ -24,7 +24,8 @@ classdef Dynamic_Solver < handle
         u_star_idx
         J_star
         J_current_state
-        J_opt_nextstate
+        F
+        %J_opt_nextstate
         X1_mesh
         X2_mesh
         X1_mesh_3D
@@ -79,8 +80,8 @@ classdef Dynamic_Solver < handle
             obj.u_star = obj.J_star;
             [obj.X_next_M1, obj.X_next_M2] = a_D_M(obj);
             obj.J_current_state = g_D(obj);
-            obj.J_opt_nextstate = zeros(size(obj.X1_mesh));
-            
+            obj.F = griddedInterpolant({obj.s_r,obj.s_r},...
+                zeros(size(obj.X1_mesh)),'linear');
             % Increase K by 1
             for k=1:obj.N-1
                 tic
@@ -176,21 +177,19 @@ classdef Dynamic_Solver < handle
         end
         
         function J_state_M(obj,k)
-            F = griddedInterpolant({obj.s_r,obj.s_r},...
-                obj.J_opt_nextstate,'linear');
             %get next state X
 %             [X_next_M1,X_next_M2] = a_D_M(obj);
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
-            J_F_next = F(obj.X_next_M1, obj.X_next_M2);
+            J_F_next = obj.F(obj.X_next_M1, obj.X_next_M2);
             % % Add up J's % % 
-            [obj.J_opt_nextstate, obj.u_star_idx] = ...
+            [obj.F.Values, obj.u_star_idx] = ...
                 min(J_F_next + obj.J_current_state,[],3);
             % % % % % % % % % %
             if(obj.checkstagesXJF)
                 obj.J_current_state_check(:,:,k) = obj.J_current_state(50:55,52:57,105);
-                obj.J_opt_nextstate_check(:,:,k) = obj.J_opt_nextstate(50:55,52:57);
-                obj.J_F_next_check(:,:,k) = J_F_next(50:55,52:57,105);
+%                obj.J_opt_nextstate_check(:,:,k) = obj.J_opt_nextstate(50:55,52:57);
+              %  obj.J_F_next_check(:,:,k) = J_F_next(50:55,52:57,105);
                 obj.X_next_M1_check(:,:,k) = obj.X_next_M1(50:55,52:57,105);
                 obj.X_next_M2_check(:,:,k)  = obj.X_next_M2(50:55,52:57,105);
 %                 obj.J_check(:,:,k) = obj.J_opt_nextstate(50:55,52:57,105);
