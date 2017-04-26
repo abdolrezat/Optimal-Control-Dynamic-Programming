@@ -265,7 +265,12 @@ classdef Solver_attitude < dynamicprops
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
             [val, U_ID3] = min( obj.J_current_state_fix  + ...
-                F(obj.X1_next,obj.X2_next,obj.X3_next,obj.X5_next,obj.X6_next,obj.X7_next), ...
+                F(obj.X1_next,... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
+                obj.X2_next,... %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
+                obj.X3_next,... %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
+                obj.X5_next,... %X5_next size = nw x nw x nw x nq x nq x nq
+                obj.X6_next,... %X6_next size = nw x nw x nw x nq x nq x nq
+                obj.X7_next), ... %X7_next size = nw x nw x nw x nq x nq x nq
                 [], obj.dim_U3);
             [val, U_ID2] = min( val, [], obj.dim_U2);
             [obj.J_next_stages_opt , U_ID1] = min( val, [], obj.dim_U1);
