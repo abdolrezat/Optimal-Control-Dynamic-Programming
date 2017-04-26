@@ -140,7 +140,7 @@ classdef Solver_attitude < dynamicprops
             
             this.size_state_mat = [n_mesh_w,n_mesh_w,n_mesh_w,...
                 this.n_mesh_q,this.n_mesh_q,this.n_mesh_q];
-            size_Umat = [this.size_state_mat,3,this.N_stage];
+            size_Umat = [this.size_state_mat,this.N_stage];
             this.U1_Opt = zeros(size_Umat,'uint8');
             this.U2_Opt = zeros(size_Umat,'uint8');
             this.U3_Opt = zeros(size_Umat,'uint8');
@@ -257,28 +257,29 @@ classdef Solver_attitude < dynamicprops
         
         function calculate_J_U_opt_state_M(obj, k_s)
             %% CAUTION: this interpolant is only valid for Xmesh
-            keyboard
             F = griddedInterpolant(...
                 {obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll}, ...
                 obj.J_next_states_opt,'linear');
             
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
+            nq = obj.n_mesh_q;
+            nw = obj.n_mesh_w;
+            nu = length(obj.U_vector);
             [val, U_ID3] = min( obj.J_current_state_fix  + ...
-                F(obj.X1_next,... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
-                obj.X2_next,... %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
-                obj.X3_next,... %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
-                obj.X5_next,... %X5_next size = nw x nw x nw x nq x nq x nq
-                obj.X6_next,... %X6_next size = nw x nw x nw x nq x nq x nq
-                obj.X7_next), ... %X7_next size = nw x nw x nw x nq x nq x nq
+                F(repmat(obj.X1_next,[1 1 1 nq nq nq 1 nu nu]),... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
+                repmat(obj.X2_next,[1 1 1 nq nq nq nu 1 nu]),... %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
+                repmat(obj.X3_next,[1 1 1 nq nq nq nu nu 1]),... %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
+                repmat(obj.X5_next,[1 1 1 1 1 1 nu nu nu]),... %X5_next size = nw x nw x nw x nq x nq x nq
+                repmat(obj.X6_next,[1 1 1 1 1 1 nu nu nu]),... %X6_next size = nw x nw x nw x nq x nq x nq
+                repmat(obj.X7_next,[1 1 1 1 1 1 nu nu nu])), ... %X7_next size = nw x nw x nw x nq x nq x nq
                 [], obj.dim_U3);
             [val, U_ID2] = min( val, [], obj.dim_U2);
-            [obj.J_next_stages_opt , U_ID1] = min( val, [], obj.dim_U1);
+            [obj.J_next_states_opt , U_ID1] = min( val, [], obj.dim_U1);
             
             obj.U1_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID1);
             obj.U2_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID2(U_ID1));
             obj.U3_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID3(U_ID2(U_ID1)));
-            
         end
         
         function spacecraft_dynamics_taylor_estimate(obj)
