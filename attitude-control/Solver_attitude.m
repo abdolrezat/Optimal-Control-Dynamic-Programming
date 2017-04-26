@@ -101,7 +101,7 @@ classdef Solver_attitude < dynamicprops
                 this.pitch_max = 10;
                 this.roll_min = -10;
                 this.roll_max = 10;
-                this.n_mesh_q = 10;
+                this.n_mesh_q = 15;
                 
                 this.Q1 = 5;
                 this.Q2 = 5;
@@ -113,7 +113,7 @@ classdef Solver_attitude < dynamicprops
                 this.R2 = 0.5;
                 this.R3 = 0.5;
                 
-                this.T_final = 1;
+                this.T_final = 20;
                 this.h = 0.05;
             end
             this.w_min = w_min;
@@ -263,16 +263,24 @@ classdef Solver_attitude < dynamicprops
             
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
-            nq = obj.n_mesh_q;
-            nw = obj.n_mesh_w;
-            nu = length(obj.U_vector);
+%             nq = obj.n_mesh_q;
+%             nw = obj.n_mesh_w;
+%             nu = length(obj.U_vector);
+%             [val, U_ID3] = min( obj.J_current_state_fix  + ...
+%                 F(repmat(obj.X1_next,[1 1 1 nq nq nq 1 nu nu]),... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
+%                 repmat(obj.X2_next,[1 1 1 nq nq nq nu 1 nu]),... %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
+%                 repmat(obj.X3_next,[1 1 1 nq nq nq nu nu 1]),... %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
+%                 repmat(obj.X5_next,[1 1 1 1 1 1 nu nu nu]),... %X5_next size = nw x nw x nw x nq x nq x nq
+%                 repmat(obj.X6_next,[1 1 1 1 1 1 nu nu nu]),... %X6_next size = nw x nw x nw x nq x nq x nq
+%                 repmat(obj.X7_next,[1 1 1 1 1 1 nu nu nu])), ... %X7_next size = nw x nw x nw x nq x nq x nq
+%                 [], obj.dim_U3);
             [val, U_ID3] = min( obj.J_current_state_fix  + ...
-                F(repmat(obj.X1_next,[1 1 1 nq nq nq 1 nu nu]),... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
-                repmat(obj.X2_next,[1 1 1 nq nq nq nu 1 nu]),... %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
-                repmat(obj.X3_next,[1 1 1 nq nq nq nu nu 1]),... %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
-                repmat(obj.X5_next,[1 1 1 1 1 1 nu nu nu]),... %X5_next size = nw x nw x nw x nq x nq x nq
-                repmat(obj.X6_next,[1 1 1 1 1 1 nu nu nu]),... %X6_next size = nw x nw x nw x nq x nq x nq
-                repmat(obj.X7_next,[1 1 1 1 1 1 nu nu nu])), ... %X7_next size = nw x nw x nw x nq x nq x nq
+                F(obj.X1_next,... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
+                obj.X2_next,... %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
+                obj.X3_next,... %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
+                obj.X5_next,... %X5_next size = nw x nw x nw x nq x nq x nq
+                obj.X6_next,... %X6_next size = nw x nw x nw x nq x nq x nq
+                obj.X7_next), ... %X7_next size = nw x nw x nw x nq x nq x nq
                 [], obj.dim_U3);
             [val, U_ID2] = min( val, [], obj.dim_U2);
             [obj.J_next_states_opt , U_ID1] = min( val, [], obj.dim_U1);
@@ -336,8 +344,18 @@ classdef Solver_attitude < dynamicprops
             obj.X5_next = reshape(r1, size_X5);
             obj.X6_next = reshape(r2, size_X5);
             obj.X7_next = reshape(r3, size_X5);
+            %temporary repmat%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            nq = obj.n_mesh_q;
+%             nw = obj.n_mesh_w;
+            nu = length(obj.U_vector);
             
-            
+            obj.X1_next = repmat(obj.X1_next,[1 1 1 nq nq nq 1 nu nu]); %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
+            obj.X2_next = repmat(obj.X2_next,[1 1 1 nq nq nq nu 1 nu]); %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
+            obj.X3_next = repmat(obj.X3_next,[1 1 1 nq nq nq nu nu 1]); %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
+            obj.X5_next = repmat(obj.X5_next,[1 1 1 1 1 1 nu nu nu]); %X5_next size = nw x nw x nw x nq x nq x nq
+            obj.X6_next = repmat(obj.X6_next,[1 1 1 1 1 1 nu nu nu]); %X6_next size = nw x nw x nw x nq x nq x nq
+            obj.X7_next = repmat(obj.X7_next,[1 1 1 1 1 1 nu nu nu]); %X7_next size = nw x nw x nw x nq x nq x nq
+                %%%%%%%%%%%%
         end
         
         function linear_control_response(spacecraft, X0, T_final, dt)
