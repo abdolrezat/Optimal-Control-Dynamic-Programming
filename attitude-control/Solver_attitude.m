@@ -85,6 +85,8 @@ classdef Solver_attitude < dynamicprops
         U1V single
         U2V single
         U3V single
+        
+        defaultX0 % default value for initial states if not explicitly specified
     end
     
     methods
@@ -121,6 +123,8 @@ classdef Solver_attitude < dynamicprops
             this.n_mesh_w = n_mesh_w;
             this.N_stage = this.T_final/this.h;
             
+            this.defaultX0 = [1;1;1;...
+                    -0.0346073883029131;-0.346079245680143;0.343470774514906;0.872387133925326];
             this.J1 = 2;
             this.J2 = 2.5;
             this.J3 = 3;
@@ -285,9 +289,9 @@ classdef Solver_attitude < dynamicprops
             [val, U_ID2] = min( val, [], obj.dim_U2);
             [obj.J_next_states_opt , U_ID1] = min( val, [], obj.dim_U1);
             
-            obj.U1_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID1);
-            obj.U2_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID2(U_ID1));
-            obj.U3_Opt(:,:,:,:,:,:,k_s) = obj.U_vector(U_ID3(U_ID2(U_ID1)));
+            obj.U1_Opt(:,:,:,:,:,:,k_s) = U_ID1;
+            obj.U2_Opt(:,:,:,:,:,:,k_s) = U_ID2(U_ID1);
+            obj.U3_Opt(:,:,:,:,:,:,k_s) = U_ID3(U_ID2(U_ID1));
         end
         
         function spacecraft_dynamics_taylor_estimate(obj)
@@ -361,10 +365,9 @@ classdef Solver_attitude < dynamicprops
         function linear_control_response(spacecraft, X0, T_final, dt)
             if nargin < 2
                 %sample initial state
-                X0 = [1;1;1;...
-                    -0.0346073883029131;-0.346079245680143;0.343470774514906;0.872387133925326];
-                T_final = 1000;
-                dt = 0.01;
+                X0 = obj.defaultX0;
+                T_final = spacecraft.T_final ;
+                dt = obj.h;
             end
             
             
@@ -514,6 +517,27 @@ classdef Solver_attitude < dynamicprops
             obj.U3V = reshape(obj.U_vector, [1 1 1 1 1 1 1 1 n_mesh_u]);
         end
         
+        function get_optimal_path(obj, X0)
+            if nargin < 2
+                X0 = obj.defaultX0;
+            end
+            X = zeros(6,obj.N_stage);
+            X(:,1) = X0;
+            U = zeros(3,obj.N_stage);
+            
+            tic
+            for k_stage=1:obj.N_stage
+                % qe = qc*q;
+                
+                U(1,k_stage) = obj.U_vector(obj.U1_Opt(x1,x2,x3,x5,x6,x7,k_stage));
+                U(2,k_stage) = obj.U_vector(obj.U2_Opt(x1,x2,x3,x5,x6,x7,k_stage));
+                U(3,k_stage) = obj.U_vector(obj.U3_Opt(x1,x2,x3,x5,x6,x7,k_stage));
+                
+                X(:,k_stage+1) = next_stage_states(spacecraft, X(:,k_stage)', U(:,k_stage)', obj.h);
+            end
+            
+        end
+            
     end
     
 end
