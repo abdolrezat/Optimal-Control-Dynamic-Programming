@@ -1,4 +1,4 @@
-classdef Solver_attitude < dynamicprops
+classdef Solver_attitude < handle
     %SOLVER_ATTITUDE Summary of this class goes here
     %   Detailed explanation goes here
     
@@ -98,12 +98,12 @@ classdef Solver_attitude < dynamicprops
                 w_min = -2;
                 w_max = 2;
                 n_mesh_w = 11;
-                this.yaw_min = -10; %angles
-                this.yaw_max = 10;
-                this.pitch_min = -10;
-                this.pitch_max = 10;
-                this.roll_min = -10;
-                this.roll_max = 10;
+                this.yaw_min = -5; %angles
+                this.yaw_max = 5;
+                this.pitch_min = -5;
+                this.pitch_max = 5;
+                this.roll_min = -5;
+                this.roll_max = 5;
                 this.n_mesh_q = 15;
                 
                 this.Q1 = 5;
@@ -116,7 +116,7 @@ classdef Solver_attitude < dynamicprops
                 this.R2 = 0.5;
                 this.R3 = 0.5;
                 
-                this.T_final = 20;
+                this.T_final = 35;
                 this.h = 0.05;
             end
             this.w_min = w_min;
@@ -124,8 +124,10 @@ classdef Solver_attitude < dynamicprops
             this.n_mesh_w = n_mesh_w;
             this.N_stage = this.T_final/this.h;
             
-            this.defaultX0 = [1;1;1;...
-                    -0.0346073883029131;-0.346079245680143;0.343470774514906;0.872387133925326];
+            this.defaultX0 = [0;0;0;...
+                ...  %quaternions equal to angle2quat(deg2rad(2), deg2rad(2), deg2rad(1))
+                    0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
+                
             this.J1 = 2;
             this.J2 = 2.5;
             this.J3 = 3;
@@ -177,8 +179,9 @@ classdef Solver_attitude < dynamicprops
                 calculate_J_U_opt_state_M(obj, k_s);
                 fprintf('step %d - %f seconds\n', k_s, toc)
             end
-            fprintf('stage calculation complete.\n')
-            
+            fprintf('stage calculation complete... cleaning up\n')
+            clear_up(obj)
+            fprintf('...Done!\n')
         end
         
         function [X1,X2,X3,X4,X5,X6,X7] = a_D_M(obj, X1,X2,X3,X4,X5,X6,X7,U1,U2,U3)
@@ -521,23 +524,70 @@ classdef Solver_attitude < dynamicprops
             if nargin < 2
                 X0 = obj.defaultX0;
             end
-            X = zeros(6,obj.N_stage);
+            X = zeros(7,obj.N_stage);
             X(:,1) = X0;
             U = zeros(3,obj.N_stage);
-            
+            X_ANGLES = zeros(6,obj.N_stage);
             tic
-            for k_stage=1:obj.N_stage
+            for k_stage=1:obj.N_stage-1
                 % qe = qc*q;
+                FU1 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
+                    single(obj.U1_Opt(:,:,:,:,:,:,k_stage)),'nearest');
+                FU2 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
+                    single(obj.U2_Opt(:,:,:,:,:,:,k_stage)),'nearest');
+                FU3 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
+                    single(obj.U3_Opt(:,:,:,:,:,:,k_stage)),'nearest');
+                [x_yaw,x_pitch,x_roll] = quat2angle([X(4,k_stage),X(5,k_stage),X(6,k_stage),X(7,k_stage)]);
                 
-                U(1,k_stage) = obj.U_vector(obj.U1_Opt(x1,x2,x3,x5,x6,x7,k_stage));
-                U(2,k_stage) = obj.U_vector(obj.U2_Opt(x1,x2,x3,x5,x6,x7,k_stage));
-                U(3,k_stage) = obj.U_vector(obj.U3_Opt(x1,x2,x3,x5,x6,x7,k_stage));
+                U(1,k_stage) = obj.U_vector(FU1(...
+                    X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
+                    x_yaw,x_pitch,x_roll));
                 
-                X(:,k_stage+1) = next_stage_states(spacecraft, X(:,k_stage)', U(:,k_stage)', obj.h);
+                U(2,k_stage) = obj.U_vector(FU2(...
+                    X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
+                    x_yaw,x_pitch,x_roll));
+                
+                U(3,k_stage) = obj.U_vector(FU3(...
+                    X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
+                    x_yaw,x_pitch,x_roll));
+                
+                X(:,k_stage+1) = next_stage_states(obj, X(:,k_stage)', U(:,k_stage)', obj.h);
+                
+                X_ANGLES(:,k_stage) = [X(1,k_stage);X(2,k_stage);X(3,k_stage);...
+                    rad2deg(x_yaw);rad2deg(x_pitch);rad2deg(x_roll)];
             end
+            toc
+            v_plot = obj.h:obj.h:obj.T_final;
+            figure
+            hold on
+            for i=1:length(obj.U_vector)
+            plot(v_plot, U(i,:),'--')
+            end
+            legend('u1','u2','u3')
+            grid on
+            xlabel('time (s)')
             
+            figure
+            hold on
+            for i=1:6
+            plot(v_plot, X_ANGLES(i,:))
+            end
+            title('rotational speeds and angles')
+            legend('x1','x2','x3','x5','x6','x7')
+            grid on
+            xlabel('time (s)')
         end
-            
+        function clear_up(obj)
+           % clears up RAM from big matrices that were used in calculations and are no longer needed
+           obj.X2_next = [];
+           obj.X1_next = [];
+           obj.X3_next = [];
+           obj.X5_next = [];
+           obj.X6_next = [];
+           obj.X7_next = [];
+           obj.J_current_state_fix = [];
+           obj.F = [];
+        end
     end
     
 end
