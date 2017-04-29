@@ -95,46 +95,52 @@ classdef Solver_attitude < handle
         function this = Solver_attitude()
             % states are [w1; w2; w3; q1; q2; q3; q4]
             if nargin < 1
-                w_min = -2;
-                w_max = 2;
-                n_mesh_w = 11;
-                this.yaw_min = -5; %angles
-                this.yaw_max = 5;
-                this.pitch_min = -5;
-                this.pitch_max = 5;
-                this.roll_min = -5;
-                this.roll_max = 5;
-                this.n_mesh_q = 15;
+                w_min = -0.2;
+                w_max = 0.2;
+                n_mesh_w = 10;
+                this.yaw_min = -50; %angles
+                this.yaw_max = 50;
+                this.pitch_min = -50;
+                this.pitch_max = 50;
+                this.roll_min = -50;
+                this.roll_max = 50;
+                this.n_mesh_q = 10;
                 
-                this.Q1 = 5;
-                this.Q2 = 5;
-                this.Q3 = 5;
-                this.Q5 = 5;
-                this.Q6 = 5;
-                this.Q7 = 5;
-                this.R1 = 0.5;
-                this.R2 = 0.5;
-                this.R3 = 0.5;
+                this.Q1 = 2;
+                this.Q2 = 2;
+                this.Q3 = 0.5;
+                this.Q5 = 8;
+                this.Q6 = 8;
+                this.Q7 = 8;
+                this.R1 = 0.01;
+                this.R2 = 0.01;
+                this.R3 = 0.01;
                 
-                this.T_final = 35;
-                this.h = 0.05;
+                this.T_final = 15;
+                this.h = 0.3;
             end
             this.w_min = w_min;
             this.w_max = w_max;
             this.n_mesh_w = n_mesh_w;
             this.N_stage = this.T_final/this.h;
             
+            if(~isinteger( this.N_stage))
+                this.N_stage = ceil(this.N_stage);
+                this.T_final = this.h*this.N_stage;
+                warning('T_final is not a factor of h (dt), increasing T_final to %.2f\n',this.T_final)
+            end
+                
             this.defaultX0 = [0;0;0;...
                 ...  %quaternions equal to angle2quat(deg2rad(2), deg2rad(2), deg2rad(1))
-                    0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
+                    0.3772;0.4329;0.6645;0.4783];%0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
                 
-            this.J1 = 2;
-            this.J2 = 2.5;
-            this.J3 = 3;
+            this.J1 = 4.350;
+            this.J2 = 4.3370;
+            this.J3 = 3.6640;
             this.dim_U1 = 7;
             this.dim_U2 = 8;
             this.dim_U3 = 9;
-            this.U_vector = [-0.01 0 0.01];
+            this.U_vector = [-0.13 0 0.13];
             
             %Preallocation and mesh generation
             this.sr_1 = linspace(w_min, w_max, n_mesh_w);
@@ -155,7 +161,7 @@ classdef Solver_attitude < handle
         end
         
         %Calculation of optimal matrices
-        function obj = run(obj)
+        function run(obj)
             obj.reshape_states();
             % calculate cost to reach next stage
             %obj.J_current_state_fix = g_D(obj);
@@ -368,25 +374,25 @@ classdef Solver_attitude < handle
         function linear_control_response(spacecraft, X0, T_final, dt)
             if nargin < 2
                 %sample initial state
-                X0 = obj.defaultX0;
+                X0 = spacecraft.defaultX0;
                 T_final = spacecraft.T_final ;
-                dt = obj.h;
+                dt = spacecraft.h;
             end
             
             
             N = T_final/dt;
-            U = [-0.01; 0; 0.01];
+            U = spacecraft.U_vector';
             X(:,1) = X0;
             %             qc = [1, 0, 0, 0;...
             %                 0, 1, 0, 0;...
             %                 0, 0, 1, 0;...
             %                 0, 0, 0, 1]; % q command (at origin, is equal to I(4x4) )
             K = [0.5, 0, 0;...
-                0, 0.4, 0;
+                0, 0.6, 0;
                 0, 0, 0.5];
-            C = [3, 0, 0;...
-                0, 3, 0;
-                0, 0, 4];
+            C = [2, 0, 0;...
+                0, 2, 0;
+                0, 0, 7];
             %             keyboard;
             tic
             for k_stage=1:N
@@ -531,13 +537,16 @@ classdef Solver_attitude < handle
             tic
             for k_stage=1:obj.N_stage-1
                 % qe = qc*q;
+                
+                [x_yaw,x_pitch,x_roll] = quat2angle([X(4,k_stage),X(5,k_stage),X(6,k_stage),X(7,k_stage)]);
+                X(4:7,k_stage) = angle2quat(x_yaw,x_pitch,x_roll)';
+                
                 FU1 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
                     single(obj.U1_Opt(:,:,:,:,:,:,k_stage)),'nearest');
                 FU2 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
                     single(obj.U2_Opt(:,:,:,:,:,:,k_stage)),'nearest');
                 FU3 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
                     single(obj.U3_Opt(:,:,:,:,:,:,k_stage)),'nearest');
-                [x_yaw,x_pitch,x_roll] = quat2angle([X(4,k_stage),X(5,k_stage),X(6,k_stage),X(7,k_stage)]);
                 
                 U(1,k_stage) = obj.U_vector(FU1(...
                     X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
@@ -551,6 +560,7 @@ classdef Solver_attitude < handle
                     X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
                     x_yaw,x_pitch,x_roll));
                 
+                %uses RK4 for next stage calculations
                 X(:,k_stage+1) = next_stage_states(obj, X(:,k_stage)', U(:,k_stage)', obj.h);
                 
                 X_ANGLES(:,k_stage) = [X(1,k_stage);X(2,k_stage);X(3,k_stage);...
@@ -566,16 +576,27 @@ classdef Solver_attitude < handle
             legend('u1','u2','u3')
             grid on
             xlabel('time (s)')
-            
             figure
             hold on
             for i=1:6
             plot(v_plot, X_ANGLES(i,:))
             end
             title('rotational speeds and angles')
+            legend('x1','x2','x3','yaw','pitch','roll')
+            grid on
+            xlabel('time (s)')
+            
+            
+            figure
+            hold on
+            for i=1:6
+            plot(v_plot, X(i,1:end))
+            end
+            title('states')
             legend('x1','x2','x3','x5','x6','x7')
             grid on
             xlabel('time (s)')
+            
         end
         function clear_up(obj)
            % clears up RAM from big matrices that were used in calculations and are no longer needed
