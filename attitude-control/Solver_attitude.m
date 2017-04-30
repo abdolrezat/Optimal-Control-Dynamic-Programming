@@ -419,30 +419,42 @@ classdef Solver_attitude < handle
             plot(time_v, U(2,:),'--')
             plot(time_v, U(3,:),'--')
             grid on
+            title('Control Inputs')
+            legend('u1','u2','u3')
+
             %plot states
-            for n_state = [1 2 3 5 6 7]
+            figure
+            hold on
+            grid on
+            for n_state = [1 2 3]
+                plot(time_v, X(n_state, 1:end-1).*180/pi)
+            end
+            legend('\omega_1','\omega_2','\omega_3')
+            xlabel('time (s)')
+            ylabel('\omega (deg/sec)')
+            
+            figure
+            hold on
+            grid on
+            for n_state = [4 5 6 7]
                 plot(time_v, X(n_state, 1:end-1))
             end
-            legend('u1','u2','u3','x1','x2','x3',... %'x4',
-                'x5','x6','x7')
+            legend('q1','q2','q3','q4')
             xlabel('time (s)')
+            
+
         end
         
         function [X1_dot,X2_dot,X3_dot,...
                 X5_dot,X6_dot,X7_dot] = spacecraft_dynamics(obj,x1,x2,x3,x4,x5,x6,u1,u2,u3)
             %returns the derivatives x_dot = f(X,u)
             %J is assumed to be diagonal, J12 = J23 = ... = 0
-            X1_dot = (obj.J2-obj.J3)/obj.J1*x2.*x3 + u1/obj.J1;
-            X2_dot = (obj.J3-obj.J1)/obj.J2*x3.*x1 + u2/obj.J2;
-            X3_dot = (obj.J1-obj.J2)/obj.J3*x1.*x2 + u3/obj.J3;
-            %X4_dot = 0.5*(-x1.*x7 -x2.*x6 -x3.*x5);
-            X5_dot = 0.5*(x2.*x7 -x1.*x6 +x3.*x4);
-            X6_dot = 0.5*(-x3.*x7 +x1.*x5 +x2.*x4);
-            X7_dot = 0.5*(x3.*x6 -x2.*x5 +x1.*x4);
+           
         end
         
         function X_dot = spacecraft_dynamics_list(obj, X,U)
             %returns the derivatives x_dot = f(X,u)
+            % FIXED q~ convention
             X_dot = zeros(size(X));
             x1 = X(:,1);
             x2 = X(:,2);
