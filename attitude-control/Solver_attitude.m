@@ -117,7 +117,7 @@ classdef Solver_attitude < handle
                 this.R3 = 0.01;
                 
                 this.T_final = 15;
-                this.h = 0.3;
+                this.h = 0.1;
             end
             this.w_min = w_min;
             this.w_max = w_max;
@@ -131,8 +131,8 @@ classdef Solver_attitude < handle
             end
                 
             this.defaultX0 = [0;0;0;...
-                ...  %quaternions equal to angle2quat(deg2rad(2), deg2rad(2), deg2rad(1))
-                    0.3772;0.4329;0.6645;0.4783];%0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
+                ...  %quaternions equal to quat(deg2rad(-10), deg2rad(20), deg2rad(-15))
+                    -0.113049101657946;0.182710741389627;-0.0625179636719816;0.974642595936322];%0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
                 
             this.J1 = 4.350;
             this.J2 = 4.3370;
@@ -372,6 +372,8 @@ classdef Solver_attitude < handle
         end
         
         function linear_control_response(spacecraft, X0, T_final, dt)
+            %example:  S.linear_control_response(S.defaultX0, 100,1e-3
+
             if nargin < 2
                 %sample initial state
                 X0 = spacecraft.defaultX0;
@@ -379,28 +381,27 @@ classdef Solver_attitude < handle
                 dt = spacecraft.h;
             end
             
-            
             N = T_final/dt;
             U = spacecraft.U_vector';
             X(:,1) = X0;
-            %             qc = [1, 0, 0, 0;...
-            %                 0, 1, 0, 0;...
-            %                 0, 0, 1, 0;...
-            %                 0, 0, 0, 1]; % q command (at origin, is equal to I(4x4) )
-            K = [0.5, 0, 0;...
-                0, 0.6, 0;
-                0, 0, 0.5];
-            C = [2, 0, 0;...
-                0, 2, 0;
-                0, 0, 7];
+            qc = [1, 0, 0, 0;...
+                0, 1, 0, 0;...
+                0, 0, 1, 0;...
+                0, 0, 0, 1]; % q command (at origin, is equal to I(4x4) )
+            K = [0.2, 0, 0;...
+                0, 0.2, 0;
+                0, 0, 0.2];
+            C = [1, 0, 0;...
+                0, 1, 0;
+                0, 0, 1];
             %             keyboard;
             tic
             for k_stage=1:N
                 % qe = qc*q;
-                qe = X(5:7, k_stage);
                 q = X(4:7, k_stage);
+                qe = qc*q;
                 w = X(1:3, k_stage);
-                U(:,k_stage) = -K*qe - C*w;
+                U(:,k_stage) = -K*qe(1:3) - C*w;
                 X(:,k_stage+1) = next_stage_states(spacecraft, [w',q'], U(:,k_stage)', dt);
             end
             q_squared_sum = sqrt(X(4,:).^2 + X(5,:).^2 + X(6,:).^2 + X(7,:).^2); %check quaternions
@@ -457,10 +458,10 @@ classdef Solver_attitude < handle
             X_dot(:,1) = (obj.J2-obj.J3)/obj.J1*x2.*x3 + u1/obj.J1;
             X_dot(:,2) = (obj.J3-obj.J1)/obj.J2*x3.*x1 + u2/obj.J2;
             X_dot(:,3) = (obj.J1-obj.J2)/obj.J3*x1.*x2 + u3/obj.J3;
-            X_dot(:,4) = 0.5*(-x1.*x7 -x2.*x6 -x3.*x5);
-            X_dot(:,5) = 0.5*(x2.*x7 -x1.*x6 +x3.*x4);
-            X_dot(:,6) = 0.5*(-x3.*x7 +x1.*x5 +x2.*x4);
-            X_dot(:,7) = 0.5*(x3.*x6 -x2.*x5 +x1.*x4);
+            X_dot(:,4) = 0.5*(x3.*x5 -x2.*x6 +x1.*x7);
+            X_dot(:,5) = 0.5*(-x3.*x4 +x1.*x6 +x2.*x7);
+            X_dot(:,6) = 0.5*(x2.*x4 -x1.*x5 +x3.*x7);
+            X_dot(:,7) = 0.5*(-x1.*x4 -x2.*x5 -x3.*x6);
         end
         
         function X2 = next_stage_states(spacecraft, X1, U, h)
@@ -476,7 +477,7 @@ classdef Solver_attitude < handle
             k3 = spacecraft_dynamics_list(spacecraft, (X1 + k2*h/2), U);
             k4 = spacecraft_dynamics_list(spacecraft, (X1 + k3*h), U);
             
-            X2 = X1 + h*(k1 + 2*k2 + 2*k3 + k4);
+            X2 = X1 + h*(k1 + 2*k2 + 2*k3 + k4)/6;
             
         end
         
