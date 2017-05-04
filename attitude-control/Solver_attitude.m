@@ -132,7 +132,7 @@ classdef Solver_attitude < handle
                 
             this.defaultX0 = [0;0;0;...
                 ...  %quaternions equal to quat(deg2rad(-10), deg2rad(20), deg2rad(-15))
-                    -0.113049101657946;0.182710741389627;-0.0625179636719816;0.974642595936322];%0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
+                    -0.087155742747658;0;0;0.996194698091746];%0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
                 
             this.J1 = 4.350;
             this.J2 = 4.3370;
@@ -403,6 +403,8 @@ classdef Solver_attitude < handle
                 w = X(1:3, k_stage);
                 U(:,k_stage) = -K*qe(1:3) - C*w;
                 X(:,k_stage+1) = next_stage_states(spacecraft, [w',q'], U(:,k_stage)', dt);
+                [x_yaw,x_pitch,x_roll] = quat2angle([X(7,k_stage),X(6,k_stage),X(5,k_stage),X(4,k_stage)]);
+                XANGLES(:,k_stage) = [x_yaw;x_pitch;x_roll];
             end
             q_squared_sum = sqrt(X(4,:).^2 + X(5,:).^2 + X(6,:).^2 + X(7,:).^2); %check quaternions
             %print time and error
@@ -442,7 +444,16 @@ classdef Solver_attitude < handle
             legend('q1','q2','q3','q4')
             xlabel('time (s)')
             
-
+            figure
+            hold on
+            grid on
+            for n_state = [1 2 3]
+                plot(time_v, XANGLES(n_state, :).*180/pi)
+            end
+            legend('\theta_1','\theta_2','\theta_3')
+            xlabel('time (s)')
+            ylabel('\theta (deg)')
+            
         end
         
         function [X1_dot,X2_dot,X3_dot,...
@@ -550,8 +561,9 @@ classdef Solver_attitude < handle
             tic
             for k_stage=1:obj.N_stage-1
                 % qe = qc*q;
-                
+                %% Issue: check q input to quat2angle()
                 [x_yaw,x_pitch,x_roll] = quat2angle([X(4,k_stage),X(5,k_stage),X(6,k_stage),X(7,k_stage)]);
+                %%
                 X(4:7,k_stage) = angle2quat(x_yaw,x_pitch,x_roll)';
                 
                 FU1 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
@@ -580,10 +592,11 @@ classdef Solver_attitude < handle
                     rad2deg(x_yaw);rad2deg(x_pitch);rad2deg(x_roll)];
             end
             toc
-            v_plot = obj.h:obj.h:obj.T_final;
+            %% check vector values (should start from 0)
+            v_plot = 0:obj.h:obj.T_final-obj.h;
             figure
             hold on
-            for i=1:length(obj.U_vector)
+            for i=1:3
             plot(v_plot, U(i,:),'--')
             end
             legend('u1','u2','u3')
