@@ -77,7 +77,7 @@ classdef Dynamic_Solver < handle
             obj.J_star = zeros([size(obj.X1_mesh),obj.N],'single');
 %             obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
 %             obj.J_star = zeros([size(obj.X1_mesh),obj.N]);
-            obj.u_star = obj.J_star;
+            obj.u_star = zeros(size(obj.X1_mesh),'single');
             [obj.X_next_M1, obj.X_next_M2] = a_D_M(obj);
             obj.J_current_state = g_D(obj);
             obj.F = griddedInterpolant({obj.s_r,obj.s_r},...
@@ -85,7 +85,6 @@ classdef Dynamic_Solver < handle
             % Increase K by 1
             for k=1:obj.N-1
                 tic
-                k_s = obj.N-k;
 %                 switch k
 %                     case {3,20,60,100,129}
 %                         hold on
@@ -97,19 +96,18 @@ classdef Dynamic_Solver < handle
 %                 end                
                 J_state_M(obj, k);
                 % store UMIN in UOPT(N-k,I)
-                obj.u_star(:,:,k_s) = U_mesh(obj.u_star_idx);
                 fprintf('step %d - %f seconds\n', k, toc)
             end %end of for loop when k = N
             
+            obj.u_star = U_mesh(obj.u_star_idx);
             
         end
         
         
-        function get_optimal_path(obj, X0, mode, ssu_num)
+        function get_optimal_path(obj, X0)
             if nargin < 3
                 X0 = [2; 1]
-                mode = 'Nssu'; % steady state u_star matrix at stage 1
-                ssu_num = 1;
+               
             end
             %Store Optimal controls, UOPT(N-k,I) and min costs, COST(N-k,I)
             %for all quantized state points (I = 1,2,..,S) and all stages
@@ -120,17 +118,11 @@ classdef Dynamic_Solver < handle
             U = zeros(obj.C,obj.N);
             J = U;
             X(:,1) = X0;
-            USTAR_OPT = obj.u_star(:,:,1);
-            USM = obj.u_star(:,:,ssu_num);
-            tol = sum(sum(USTAR_OPT - USM).^2);
+           
             for k=1:obj.N-1
-                if strcmp(mode,'ssu')
-                    USM = obj.u_star(:,:,ssu_num);
-                else
-                    USM =  obj.u_star(:,:,k);
-                end
+               
                 Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                   USM,'linear');
+                   obj.u_star,'linear');
                 
                 U(k) = Fu(X(1,k),X(2,k));
                
@@ -165,19 +157,8 @@ classdef Dynamic_Solver < handle
             legend('X1', 'X2', 'u*');
             grid on
             xlim([v(1) v(end)])
-            if(strcmp(mode,'ssu'))
-            fprintf('sum of all U deviations from stage 1 Matrix: %.5f\n',tol)
-            % calculate deviation  of first U
-            Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                USM,'linear');
-            U_first_actual = Fu(X(1,1),X(2,1));
-            Fu = griddedInterpolant(obj.X1_mesh, obj.X2_mesh,...
-                USTAR_OPT,'linear');
-            U_first_SSU = Fu(X(1,1),X(2,1));
-            err_U_first = abs(U_first_SSU - U_first_actual);
-            fprintf('deviation of first U from stage 1 Matrix: %.5f\n',err_U_first)
-
-            end
+         
+            
         end
         
         
