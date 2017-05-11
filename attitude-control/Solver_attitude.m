@@ -97,26 +97,26 @@ classdef Solver_attitude < handle
         function this = Solver_attitude()
             % states are [w1; w2; w3; q1; q2; q3; q4]
             if nargin < 1
-                w_min = -deg2rad(1);
-                w_max = -deg2rad(-1);
-                n_mesh_w = 10;
-                this.yaw_min = -5; %angles
-                this.yaw_max = 5;
-                this.pitch_min = -4;
-                this.pitch_max = 4;
-                this.roll_min = -5.5;
-                this.roll_max = 5.5;
+                w_min = -deg2rad(0.9);
+                w_max = -deg2rad(-0.9);
+                n_mesh_w = 12;
+                this.yaw_min = -1.5; %angles
+                this.yaw_max = 3;
+                this.pitch_min = -2.4;
+                this.pitch_max = 1;
+                this.roll_min = -1;
+                this.roll_max = 2.3;
                 this.n_mesh_q = 20;
                 
-                this.Q1 = 5;
-                this.Q2 = 5;
-                this.Q3 = 5;
-                this.Q4 = 8;
-                this.Q5 = 8;
-                this.Q6 = 8;
-                this.R1 = 0.01;
-                this.R2 = 0.01;
-                this.R3 = 0.01;
+                this.Q1 = 6;
+                this.Q2 = 6;
+                this.Q3 = 6;
+                this.Q4 = 6;
+                this.Q5 = 6;
+                this.Q6 = 6;
+                this.R1 = 0.1;
+                this.R2 = 0.1;
+                this.R3 = 0.1;
                 
                 this.T_final = 15;
                 this.h = 0.005;
@@ -131,14 +131,15 @@ classdef Solver_attitude < handle
                 this.T_final = this.h*this.N_stage;
                 warning('T_final is not a factor of h (dt), increasing T_final to %.2f\n',this.T_final)
             end
-                
+            
+            q0 = [0;0;0.0174524064372835;0.999847695156391]; %angle2quat(0,0,roll = deg2rad(2))
             this.defaultX0 = [0;0;0;...
                 ...  %quaternions equal to quat(deg2rad(-10), deg2rad(20), deg2rad(-15))
-                    -0.087155742747658;0;0;0.996194698091746];%0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
+                    q0];%0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774]; 
                 
-            this.J1 = 4.350;
-            this.J2 = 4.3370;
-            this.J3 = 3.6640;
+            this.J1 = 2;
+            this.J2 = 2.5;
+            this.J3 = 3;
             this.dim_U1 = 7;
             this.dim_U2 = 8;
             this.dim_U3 = 9;
