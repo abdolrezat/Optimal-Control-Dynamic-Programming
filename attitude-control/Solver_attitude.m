@@ -187,7 +187,7 @@ classdef Solver_attitude < handle
                 tic
                 calculate_J_U_opt_state_M(obj, k_s);
                 fprintf('step %d - %f seconds\n', k_s, toc)
-                %stop criteria (U_Opt_tol < e, etc...) can be added here
+                %stop criteria (e.g. U_Opt_tol < e, etc...) can be added here
                 
                 %
                 keyboard
@@ -539,6 +539,8 @@ classdef Solver_attitude < handle
             k4 = spacecraft_dynamics_list(spacecraft, (X1 + k3*h), U);
             
             X2 = X1 + h*(k1 + 2*k2 + 2*k3 + k4)/6;
+            q_sqsum = sqrt(X2(4).^2 +  X2(5).^2 +  X2(6).^2 +  X2(7).^2);
+            X2(4:7) = X2(4:7)./q_sqsum;
             
         end
         
@@ -588,49 +590,52 @@ classdef Solver_attitude < handle
             obj.U3V = reshape(obj.U_vector, [1 1 1 1 1 1 1 1 n_mesh_u]);
         end
         
-        function get_optimal_path(obj, X0)
+        function get_optimal_path(obj, X0, method)
             if nargin < 2
                 X0 = obj.defaultX0;
+                method = 'nearest';
             end
             X = zeros(7,obj.N_stage);
             X(:,1) = X0;
             U = zeros(3,obj.N_stage);
-            X_ANGLES = zeros(6,obj.N_stage);
+            X_ANGLES = zeros(9,obj.N_stage);
             tic
             for k_stage=1:obj.N_stage-1
                 % qe = qc*q;
-                %% Issue: check q input to quat2angle()
-                [x_yaw,x_pitch,x_roll] = quat2angle([X(4,k_stage),X(5,k_stage),X(6,k_stage),X(7,k_stage)]);
-                %%
-                X(4:7,k_stage) = angle2quat(x_yaw,x_pitch,x_roll)';
-                
+                %% proper q input to quat2angle()
+                [x_yaw,x_pitch,x_roll] = quat2angle([X(7,k_stage),X(6,k_stage),X(5,k_stage),X(4,k_stage)]);
+%                 X(4:7,k_stage) = angle2quat(x_yaw,x_pitch,x_roll)';
+                %% issue: implement obj.Ui_Opt = single(obj.U_vector(obj.Ui_Opt)) after clean up
                 FU1 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
-                    single(obj.U1_Opt(:,:,:,:,:,:,k_stage)),'nearest');
+                    single(obj.U_vector(obj.U1_Opt)),method);
+                %%
                 FU2 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
-                    single(obj.U2_Opt(:,:,:,:,:,:,k_stage)),'nearest');
+                    single(obj.U_vector(obj.U2_Opt)),method);
                 FU3 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
-                    single(obj.U3_Opt(:,:,:,:,:,:,k_stage)),'nearest');
+                    single(obj.U_vector(obj.U3_Opt)),method);
                 
-                U(1,k_stage) = obj.U_vector(FU1(...
+                U(1,k_stage) = FU1(...
                     X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
-                    x_yaw,x_pitch,x_roll));
+                    x_yaw,x_pitch,x_roll);
                 
-                U(2,k_stage) = obj.U_vector(FU2(...
+                U(2,k_stage) = FU2(...
                     X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
-                    x_yaw,x_pitch,x_roll));
+                    x_yaw,x_pitch,x_roll);
                 
-                U(3,k_stage) = obj.U_vector(FU3(...
+                U(3,k_stage) = FU3(...
                     X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
-                    x_yaw,x_pitch,x_roll));
+                    x_yaw,x_pitch,x_roll);
                 
                 %uses RK4 for next stage calculations
                 X(:,k_stage+1) = next_stage_states(obj, X(:,k_stage)', U(:,k_stage)', obj.h);
                 
                 X_ANGLES(:,k_stage) = [X(1,k_stage);X(2,k_stage);X(3,k_stage);...
-                    rad2deg(x_yaw);rad2deg(x_pitch);rad2deg(x_roll)];
+                    rad2deg(x_roll);rad2deg(x_pitch);rad2deg(x_yaw);...
+                    U(:,k_stage)];
             end
             toc
             %% check vector values (should start from 0)
+            keyboard
             v_plot = 0:obj.h:obj.T_final-obj.h;
             figure
             hold on
@@ -667,9 +672,9 @@ classdef Solver_attitude < handle
            obj.X2_next = [];
            obj.X1_next = [];
            obj.X3_next = [];
+           obj.X4_next = [];
            obj.X5_next = [];
            obj.X6_next = [];
-           obj.X7_next = [];
            obj.J_current_state_fix = [];
            obj.F = [];
         end
