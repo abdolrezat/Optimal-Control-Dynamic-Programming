@@ -144,7 +144,7 @@ classdef Solver_attitude < handle
             this.dim_U2 = 8;
             this.dim_U3 = 9;
             this.U_vector = [-0.01 0 0.01];
-            
+            length_U = length(this.U_vector);
             %Preallocation and mesh generation
             this.sr_1 = linspace(w_min, w_max, n_mesh_w);
             this.sr_2 = linspace(w_min, w_max, n_mesh_w);
@@ -156,10 +156,10 @@ classdef Solver_attitude < handle
             
             this.size_state_mat = [n_mesh_w,n_mesh_w,n_mesh_w,...
                 this.n_mesh_q,this.n_mesh_q,this.n_mesh_q];
-            size_Umat = [this.size_state_mat,this.N_stage];
-            this.U1_Opt = zeros(size_Umat,'uint8');
-            this.U2_Opt = zeros(size_Umat,'uint8');
-            this.U3_Opt = zeros(size_Umat,'uint8');
+
+            this.U1_Opt = zeros([this.size_state_mat],'uint8');
+            this.U2_Opt = zeros([this.size_state_mat,length_U],'uint8');
+            this.U3_Opt = zeros([this.size_state_mat,length_U,length_U],'uint8');
             
         end
         
@@ -187,7 +187,17 @@ classdef Solver_attitude < handle
                 tic
                 calculate_J_U_opt_state_M(obj, k_s);
                 fprintf('step %d - %f seconds\n', k_s, toc)
+                %stop criteria (U_Opt_tol < e, etc...) can be added here
+                
+                %
+                keyboard
             end
+            %% final Ui_Opts 
+            % do NOT reverse the order of assignments
+            obj.U3_Opt = obj.U3_Opt(obj.U2_Opt(obj.U1_Opt));
+            obj.U2_Opt = obj.U2_Opt(obj.U1_Opt);
+            obj.U1_Opt = obj.U1_Opt;
+            %report
             fprintf('stage calculation complete... cleaning up\n')
             clear_up(obj)
             fprintf('...Done!\n')
@@ -276,6 +286,7 @@ classdef Solver_attitude < handle
         end
         
         function calculate_J_U_opt_state_M(obj, k_s)
+
             %% CAUTION: this interpolant is only valid for Xmesh
             %find J final for each state and control (X,U) and add it to next state
             %optimum J*
@@ -290,7 +301,7 @@ classdef Solver_attitude < handle
 %                 repmat(obj.X6_next,[1 1 1 1 1 1 nu nu nu]),... %X6_next size = nw x nw x nw x nq x nq x nq
 %                 repmat(obj.X7_next,[1 1 1 1 1 1 nu nu nu])), ... %X7_next size = nw x nw x nw x nq x nq x nq
 %                 [], obj.dim_U3);
-            [val, U_ID3] = min( obj.J_current_state_fix  + ...
+            [val, obj.U3_Opt] = min( obj.J_current_state_fix  + ...
                 obj.F(obj.X1_next,... %X1_next size = nw x nw x nw x 1 x 1 x 1 x nu
                 obj.X2_next,... %X2_next size = nw x nw x nw x 1 x 1 x 1 x 1 x nu
                 obj.X3_next,... %X3_next size = nw x nw x nw x 1 x 1 x 1 x 1 x 1 x nu
@@ -298,12 +309,9 @@ classdef Solver_attitude < handle
                 obj.X5_next,... %X5_next size = nw x nw x nw x nq x nq x nq
                 obj.X6_next), ... %X6_next size = nw x nw x nw x nq x nq x nq
                 [], obj.dim_U3);
-            [val, U_ID2] = min( val, [], obj.dim_U2);
-            [obj.F.Values, U_ID1] = min( val, [], obj.dim_U1);
+            [val, obj.U2_Opt] = min( val, [], obj.dim_U2);
+            [obj.F.Values, obj.U1_Opt] = min( val, [], obj.dim_U1);
             
-            obj.U1_Opt(:,:,:,:,:,:,k_s) = U_ID1;
-            obj.U2_Opt(:,:,:,:,:,:,k_s) = U_ID2(U_ID1);
-            obj.U3_Opt(:,:,:,:,:,:,k_s) = U_ID3(U_ID2(U_ID1));
         end
         
         function spacecraft_dynamics_taylor_estimate(obj)
