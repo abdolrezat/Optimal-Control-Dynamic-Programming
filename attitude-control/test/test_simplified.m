@@ -53,9 +53,9 @@ s_w1 = linspace(w_min, w_max, n_mesh_w);
 s_w2 = linspace(w_min, w_max, n_mesh_w);
 s_w3 = linspace(w_min, w_max, n_mesh_w);
 
-s_t1 = linspace(deg2rad(roll_min), deg2rad(roll_max), n_mesh_t);
+s_t1 = linspace(deg2rad(yaw_min), deg2rad(yaw_max), n_mesh_t);
 s_t2 = linspace(deg2rad(pitch_min), deg2rad(pitch_max), n_mesh_t);
-s_t3 = linspace(deg2rad(yaw_min), deg2rad(yaw_max), n_mesh_t);
+s_t3 = linspace(deg2rad(roll_min), deg2rad(roll_max), n_mesh_t);
 
 
 %% initialization
@@ -194,12 +194,12 @@ else
     tic
     for k_stage=1:N_stage-1
         [x_yaw,x_pitch,x_roll] = quat2angle([X(7,k_stage),X(6,k_stage),X(5,k_stage),X(4,k_stage)]);
-        t3 = x_yaw;
-        t2 = x_pitch;
-        t1 = x_roll;
-        %         t3 = 2*asin(X(4,k_stage));
-        %         t2 = 2*asin(X(5,k_stage));
-        %         t1 = 2*asin(X(6,k_stage));
+%         t3 = x_roll;
+%         t2 = x_pitch;
+%         t1 = x_yaw;
+                t1 = 2*asin(X(4,k_stage));
+                t2 = 2*asin(X(5,k_stage));
+                t3 = 2*asin(X(6,k_stage));
         %     t1,t2,t3
         FU1 = griddedInterpolant({s_w1,s_t1}, single(U1_Opt(:,:,1)),'nearest');
         FU2 = griddedInterpolant({s_w2,s_t2}, single(U2_Opt(:,:,1)),'nearest');
