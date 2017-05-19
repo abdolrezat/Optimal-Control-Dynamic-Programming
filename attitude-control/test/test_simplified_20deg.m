@@ -1,7 +1,7 @@
-function test_simplified()
+function test_simplified_20deg()
 %% default parameters
-skip_calc = 0;
-simplified = 1;
+skip_calc = 1;
+simplified = 0;
 q0 = [0;0;0.0174524064372835;0.999847695156391]; %angle2quat(0,0,roll = deg2rad(2))
 X0 = [0;0;0;...
     ...  %quaternions equal to quat(deg2rad(-15), deg2rad(20), deg2rad(-10))
@@ -112,7 +112,8 @@ fprintf('stage calculation complete... cleaning up...\n')
 %     w1_next w2_next w3_next t1_next t2_next t3_next
 fprintf('...Done!\n')
 else
-fprintf('Calculation skipped, load the required data\n')
+    load('simplified-test-20deg.mat')
+    fprintf('Calculation skipped, loaded the required data\n')
 end
 
 keyboard
@@ -193,13 +194,17 @@ else
     X_ANGLES = zeros(9,N_stage);
     tic
     for k_stage=1:N_stage-1
-        [x_yaw,x_pitch,x_roll] = quat2angle([X(7,k_stage),X(6,k_stage),X(5,k_stage),X(4,k_stage)]);
-        t3 = x_yaw;
-        t2 = x_pitch;
+%         t3 = x_roll;
+%         t2 = x_pitch;
+%         t1 = x_yaw;
+        x_roll = 2*asin(X(4,k_stage));
+        x_pitch = 2*asin(X(5,k_stage));
+        x_yaw = 2*asin(X(6,k_stage));
+%         
         t1 = x_roll;
-        %         t3 = 2*asin(X(4,k_stage));
-        %         t2 = 2*asin(X(5,k_stage));
-        %         t1 = 2*asin(X(6,k_stage));
+        t2 = x_pitch;
+        t3 = x_yaw;
+        
         %     t1,t2,t3
         FU1 = griddedInterpolant({s_w1,s_t1}, single(U1_Opt(:,:,1)),'nearest');
         FU2 = griddedInterpolant({s_w2,s_t2}, single(U2_Opt(:,:,1)),'nearest');
@@ -211,7 +216,8 @@ else
         %% test on Real system dynamics
 
            X(:,k_stage+1) = real_system_dynamics(X(:,k_stage)', U(:,k_stage)', J1, J2, J3, h);
-            
+        [t1,t2,t3] = quat2angle([X(7,k_stage),X(6,k_stage),X(5,k_stage),X(4,k_stage)]);
+    
         X_ANGLES(:,k_stage) = [X(1,k_stage);X(2,k_stage);X(3,k_stage);... % w1,w2,w3
             rad2deg(t1);rad2deg(t2);rad2deg(t3);... % angles
             U(:,k_stage)]; % controls
@@ -262,9 +268,33 @@ else
     xlabel('time (s)')
     
 end %end if
+
 keyboard
+
+
+k_s = 1:N_stage-2;
 keyboard
-keyboard
+this.X1_mesh = X1(:,:,1);
+this.X2_mesh = X4(:,:,1);
+%
+this.u_star = U1_Opt;
+%
+if length(k_s) == 1
+    figure
+    plot3( this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_s) )
+else
+    figure
+    p = mesh(this.X1_mesh, this.X2_mesh, this.u_star(:,:,k_s(1)) );
+    colormap winter
+    % not allowing axis limits to change automatically
+    axis manual
+    for i=2:length(k_s)
+        k_temp = k_s(i);
+        p.ZData =  this.u_star(:,:,k_s(i));
+        title(['Stage ',num2str(k_temp)]);
+        pause(0.001)
+    end
+end
 keyboard
 
 function J_ = J_current(w,theta,U,Qw,Qt,R) 
