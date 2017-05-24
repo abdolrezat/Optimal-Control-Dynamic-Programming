@@ -42,6 +42,7 @@ classdef Solver_attitude < handle
         w_min
         w_max
         n_mesh_w
+        n_mesh_t % for simplified dyn
         yaw_min
         yaw_max
         pitch_min
@@ -74,6 +75,10 @@ classdef Solver_attitude < handle
         R2
         R3
         
+        Qt1 %for simplified dyn
+        Qt2
+        Qt3
+        
         X1V single
         X2V single
         X3V single
@@ -99,27 +104,33 @@ classdef Solver_attitude < handle
             if nargin < 1
                 w_min = -deg2rad(0.9);
                 w_max = -deg2rad(-0.9);
-                n_mesh_w = 12;
-                this.yaw_min = -1.5; %angles
-                this.yaw_max = 3;
-                this.pitch_min = -2.4;
-                this.pitch_max = 1;
-                this.roll_min = -1;
-                this.roll_max = 2.3;
-                this.n_mesh_q = 20;
-                
+                n_mesh_w = 100;
+                this.yaw_min = -30; %angles
+                this.yaw_max = 30;
+                this.pitch_min = -20;
+                this.pitch_max = 20;
+                this.roll_min = -35;
+                this.roll_max = 35;
+                this.n_mesh_q = 10;
+                this.n_mesh_t = 100; %for simplified dyn
+
                 this.Q1 = 6;
                 this.Q2 = 6;
                 this.Q3 = 6;
-                this.Q4 = 6;
+                
+                this.Q4 = 6; %quaternions, thetas
                 this.Q5 = 6;
                 this.Q6 = 6;
-                this.R1 = 0.1;
-                this.R2 = 0.1;
-                this.R3 = 0.1;
+                this.R1 = 100;
+                this.R2 = 300;
+                this.R3 = 200;
+                
+                this.Qt1 = this.Q4;
+                this.Qt2 = this.Q5;
+                this.Qt3 = this.Q6;
                 
                 this.T_final = 15;
-                this.h = 0.005;
+                this.h = 0.01;
             end
             this.w_min = w_min;
             this.w_max = w_max;
@@ -140,6 +151,7 @@ classdef Solver_attitude < handle
             this.J1 = 2;
             this.J2 = 2.5;
             this.J3 = 3;
+            
             this.dim_U1 = 7;
             this.dim_U2 = 8;
             this.dim_U3 = 9;
@@ -164,6 +176,71 @@ classdef Solver_attitude < handle
         end
         
         %Calculation of optimal matrices
+        function simplified_run(obj)
+            
+            %% mesh generation
+            s_w1 = linspace(obj.w_min, obj.w_max, obj.n_mesh_w);
+            s_w2 = linspace(obj.w_min, obj.w_max, obj.n_mesh_w);
+            s_w3 = linspace(obj.w_min, obj.w_max, obj.n_mesh_w);
+            
+            s_t1 = linspace(deg2rad(obj.yaw_min), deg2rad(obj.yaw_max), obj.n_mesh_t);
+            s_t2 = linspace(deg2rad(obj.pitch_min), deg2rad(obj.pitch_max), obj.n_mesh_t);
+            s_t3 = linspace(deg2rad(obj.roll_min), deg2rad(obj.roll_max), obj.n_mesh_t);
+            
+            %% initialization
+            %states, controls
+            [X1,X4,U1] = ndgrid(s_w1,s_t1,obj.U_vector);
+            [X2,X5,U2] = ndgrid(s_w2,s_t2,obj.U_vector);
+            [X3,X6,U3] = ndgrid(s_w3,s_t3,obj.U_vector);
+            
+            %u_opt
+            size_Umat = [obj.n_mesh_w, obj.n_mesh_t];
+            obj.U1_Opt = zeros(size_Umat,'single');
+            obj.U2_Opt = zeros(size_Umat,'single');
+            obj.U3_Opt = zeros(size_Umat,'single');
+            
+            %J matrices, current and optimal next stage
+            J_current = @(w,theta,U,Qw,Qt,R)(Qw * w.^2 + Qt * theta.^2 + R*U.^2);
+            J_current_1 = J_current(X1,X4,U1,obj.Q1,obj.Qt1,obj.R1);
+            F1 = griddedInterpolant({s_w1,s_t1},zeros(obj.n_mesh_w,obj.n_mesh_t),'linear');
+            
+            J_current_2 = J_current(X2,X5,U2,obj.Q2,obj.Qt2,obj.R2);
+            F2 = griddedInterpolant({s_w2,s_t2},zeros(obj.n_mesh_w,obj.n_mesh_t),'linear');
+            
+            J_current_3 = J_current(X3,X6,U3,obj.Q3,obj.Qt3,obj.R3);
+            F3 = griddedInterpolant({s_w3,s_t3},zeros(obj.n_mesh_w,obj.n_mesh_t),'linear');
+            %
+            %
+            [w1_next,t1_next] = next_stage_states_simplified(obj,X1, X4, U1, obj.J1, obj.h);
+            [w2_next,t2_next] = next_stage_states_simplified(obj,X2, X5, U2, obj.J2, obj.h);
+            [w3_next,t3_next] = next_stage_states_simplified(obj,X3, X6, U3, obj.J3, obj.h);
+            % keyboard
+            whandle = waitbar(0,'Calculation in Progress...');
+            for k_s = obj.N_stage-1:-1:1
+                tic
+                %     C = F1(w1_next,t1_next);
+                [F1.Values, U1_idx] = min( J_current_1 + F1(w1_next,t1_next), [], 3);
+                [F2.Values, U2_idx] = min( J_current_2 + F2(w2_next,t2_next), [], 3);
+                [F3.Values, U3_idx] = min( J_current_3 + F3(w3_next,t3_next), [], 3);
+                
+
+                %     QQ = U1_idx;
+                waitbar( 1 - k_s/obj.N_stage, whandle);
+                fprintf('step %d - %f seconds\n', k_s, toc)
+            end
+            %set U* Optimal            
+            obj.U1_Opt = griddedInterpolant({s_w1,s_t1}, obj.U_vector(U1_idx),'nearest');
+            obj.U2_Opt = griddedInterpolant({s_w2,s_t2}, obj.U_vector(U2_idx),'nearest');
+            obj.U3_Opt = griddedInterpolant({s_w3,s_t3}, obj.U_vector(U3_idx),'nearest');
+            close(whandle)
+            fprintf('stage calculation complete... cleaning up...\n')
+            % clear J_current_1 J_current_2 J_current_3 F1 F2 F3 X1 X2 X3 X4 X5 X6 U1 U2 U3 ...
+            %     w1_next w2_next w3_next t1_next t2_next t3_next
+            fprintf('...Done!\n')
+
+            
+        end
+        
         function run(obj)
             obj.reshape_states();
             % calculate cost to reach next stage
@@ -187,10 +264,9 @@ classdef Solver_attitude < handle
                 tic
                 calculate_J_U_opt_state_M(obj, k_s);
                 fprintf('step %d - %f seconds\n', k_s, toc)
-                %stop criteria (e.g. U_Opt_tol < e, etc...) can be added here
-                
+                %stop criteria (e.g. dFi(X) < tol, etc...) can be added here
+%                 id1 = this.sr_1 == 
                 %
-                keyboard
             end
             %% final Ui_Opts 
             % do NOT reverse the order of assignments
@@ -200,6 +276,9 @@ classdef Solver_attitude < handle
             %report
             fprintf('stage calculation complete... cleaning up\n')
             clear_up(obj)
+            obj.U1_Opt = single(obj.U_vector(obj.U1_Opt));
+            obj.U2_Opt = single(obj.U_vector(obj.U2_Opt));
+            obj.U3_Opt = single(obj.U_vector(obj.U3_Opt));
             fprintf('...Done!\n')
         end
         
@@ -285,7 +364,7 @@ classdef Solver_attitude < handle
                 obj.R2*U2.^2 + obj.R3*U3.^2;
         end
         
-        function calculate_J_U_opt_state_M(obj, k_s)
+        function calculate_J_U_opt_state_M(obj)
 
             %% CAUTION: this interpolant is only valid for Xmesh
             %find J final for each state and control (X,U) and add it to next state
@@ -525,7 +604,56 @@ classdef Solver_attitude < handle
             X_dot(:,7) = 0.5*(-x1.*x4 -x2.*x5 -x3.*x6);
         end
         
-        function X2 = next_stage_states(spacecraft, X1, U, h)
+        %% functions for simplified dynamics
+        function [w_next,t_next] = next_stage_states_simplified(obj,W, T, U, J, h)
+            w_next = RK4_w(obj,W, U, J, h);
+            t_next = RK4_t(obj,T, W, h);
+        end
+        
+        function W2 = RK4_w(obj,w, U, J, h)
+            %calculates next stage (k+1) states
+            % X2 = X1 + dt*a_d(X,u) where a_d is the spacecraft dynamics
+            %first order taylor expansion
+            %X2 = X1 + dt*spacecraft_dynamics(spacecraft, X1, U);
+            
+            % Runge-Kutta - 4th order
+            % h = dt;
+            k1 = wdynamics(obj,w , U, J);
+            k2 = wdynamics(obj,(w + k1*h/2), U, J);
+            k3 = wdynamics(obj,(w + k2*h/2), U, J);
+            k4 = wdynamics(obj,(w + k3*h), U, J);
+            
+            W2 = w + h*(k1 + 2*k2 + 2*k3 + k4)/6;
+        end
+        
+        function T2 = RK4_t(obj,T1, W1, h)
+            %calculates next stage (k+1) states
+            % X2 = X1 + dt*a_d(X,u) where a_d is the spacecraft dynamics
+            %first order taylor expansion
+            %X2 = X1 + dt*spacecraft_dynamics(spacecraft, X1, U);
+            
+            % Runge-Kutta - 4th order
+            % h = dt;
+            k1 = tdynamics(obj,W1);
+            k2 = tdynamics(obj,(W1 + k1*h/2));
+            k3 = tdynamics(obj,(W1 + k2*h/2));
+            k4 = tdynamics(obj,(W1 + k3*h));
+            
+            T2 = T1 + h*(k1 + 2*k2 + 2*k3 + k4)/6;
+        end
+        
+        function w_dot = wdynamics(~,~, U, J)
+            w_dot = U/J;
+        end
+        function t_dot = tdynamics(~,w)
+            t_dot = w;
+        end
+        %% end of simplified dynamics functions
+        
+        function X2 = next_stage_states(spacecraft, X1, U, h, mode)
+            if nargin < 5
+                mode = 'RK4';
+            end
             %calculates next stage (k+1) states
             % X2 = X1 + dt*a_d(X,u) where a_d is the spacecraft dynamics
             %first order taylor expansion
@@ -534,11 +662,17 @@ classdef Solver_attitude < handle
             % Runge-Kutta - 4th order
             % h = dt;
             k1 = spacecraft_dynamics_list(spacecraft, X1 , U);
-            k2 = spacecraft_dynamics_list(spacecraft, (X1 + k1*h/2), U);
-            k3 = spacecraft_dynamics_list(spacecraft, (X1 + k2*h/2), U);
-            k4 = spacecraft_dynamics_list(spacecraft, (X1 + k3*h), U);
-            
-            X2 = X1 + h*(k1 + 2*k2 + 2*k3 + k4)/6;
+            if (strcmp(mode,'RK4'))
+                k2 = spacecraft_dynamics_list(spacecraft, (X1 + k1*h/2), U);
+                k3 = spacecraft_dynamics_list(spacecraft, (X1 + k2*h/2), U);
+                k4 = spacecraft_dynamics_list(spacecraft, (X1 + k3*h), U);
+                
+                
+                X2 = X1 + h*(k1 + 2*k2 + 2*k3 + k4)/6;
+                
+            elseif(strcmp(mode,'taylor'))
+                X2 = X1 + h*k1;
+            end
             q_sqsum = sqrt(X2(4).^2 +  X2(5).^2 +  X2(6).^2 +  X2(7).^2);
             X2(4:7) = X2(4:7)./q_sqsum;
             
@@ -605,14 +739,12 @@ classdef Solver_attitude < handle
                 %% proper q input to quat2angle()
                 [x_yaw,x_pitch,x_roll] = quat2angle([X(7,k_stage),X(6,k_stage),X(5,k_stage),X(4,k_stage)]);
 %                 X(4:7,k_stage) = angle2quat(x_yaw,x_pitch,x_roll)';
-                %% issue: implement obj.Ui_Opt = single(obj.U_vector(obj.Ui_Opt)) after clean up
                 FU1 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
-                    single(obj.U_vector(obj.U1_Opt)),method);
-                %%
+                    obj.U1_Opt,method);
                 FU2 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
-                    single(obj.U_vector(obj.U2_Opt)),method);
+                    obj.U2_Opt,method);
                 FU3 = griddedInterpolant({obj.sr_1, obj.sr_2, obj.sr_3, obj.s_yaw, obj.s_pitch, obj.s_roll},...
-                    single(obj.U_vector(obj.U3_Opt)),method);
+                    obj.U3_Opt,method);
                 
                 U(1,k_stage) = FU1(...
                     X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
@@ -626,8 +758,8 @@ classdef Solver_attitude < handle
                     X(1,k_stage),X(2,k_stage),X(3,k_stage), ...
                     x_yaw,x_pitch,x_roll);
                 
-                %uses RK4 for next stage calculations
-                X(:,k_stage+1) = next_stage_states(obj, X(:,k_stage)', U(:,k_stage)', obj.h);
+                %uses taylor for next stage calculations
+                X(:,k_stage+1) = next_stage_states(obj, X(:,k_stage)', U(:,k_stage)', obj.h, 'taylor');
                 
                 X_ANGLES(:,k_stage) = [X(1,k_stage);X(2,k_stage);X(3,k_stage);...
                     rad2deg(x_roll);rad2deg(x_pitch);rad2deg(x_yaw);...
@@ -635,7 +767,7 @@ classdef Solver_attitude < handle
             end
             toc
             %% check vector values (should start from 0)
-            keyboard
+          
             v_plot = 0:obj.h:obj.T_final-obj.h;
             figure
             hold on
@@ -645,14 +777,29 @@ classdef Solver_attitude < handle
             legend('u1','u2','u3')
             grid on
             xlabel('time (s)')
+            
+            %plot w1,w2,w3
             figure
             hold on
-            for i=1:6
+            grid on
+            for n_state = [1 2 3]
+                plot(v_plot, X(n_state, :).*180/pi)
+            end
+            legend('\omega_1','\omega_2','\omega_3')
+            xlabel('time (s)')
+            ylabel('\omega (deg/sec)')
+            
+            
+            %plot angles
+            figure
+            hold on
+            for i=4:6
             plot(v_plot, X_ANGLES(i,:))
             end
-            title('rotational speeds and angles')
-            legend('x1','x2','x3','yaw','pitch','roll')
+            title('rotation angles')
+            legend('roll','pitch','yaw')
             grid on
+            ylabel('deg')
             xlabel('time (s)')
             
             
@@ -667,6 +814,91 @@ classdef Solver_attitude < handle
             xlabel('time (s)')
             
         end
+        
+        function get_optimal_path_simplified_testode45(obj)
+            tic
+            X0 = obj.defaultX0;
+            FU1 = obj.U1_Opt;
+            FU2 = obj.U2_Opt;
+            FU3 = obj.U3_Opt;
+            tspan = 0:obj.h:obj.T_final;
+            [T_ode45,X_ode45] = ode45(@ode_eq,tspan,X0);
+            toc
+            
+            theta1_ode45 = 2*asin(X_ode45(:,4));
+            theta2_ode45 = 2*asin(X_ode45(:,5));
+            theta3_ode45 = 2*asin(X_ode45(:,6));
+            U1_ode45 = FU1(X_ode45(:,1), theta1_ode45);
+            U2_ode45 = FU2(X_ode45(:,2), theta2_ode45);
+            U3_ode45 = FU3(X_ode45(:,3), theta3_ode45);
+            
+            %% plot rotational speeds
+            figure
+            hold on
+            grid on
+            for n_state = [1 2 3]
+                plot(T_ode45, X_ode45(:, n_state).*180/pi)
+            end
+            legend('\omega_1','\omega_2','\omega_3')
+            xlabel('time (s)')
+            ylabel('\omega (deg/sec)')
+            
+            %% plot angles
+            figure
+            hold on
+            plot(T_ode45,theta1_ode45)
+            plot(T_ode45,theta2_ode45)
+            plot(T_ode45,theta3_ode45)
+            
+            title('rotation angles')
+            legend('\theta_1','\theta_2','\theta_3')
+            grid on
+            xlabel('time (s)')
+            
+            %% plot controls
+            figure
+            plot(T_ode45, U1_ode45,'--')
+            hold on
+            plot(T_ode45, U2_ode45,'--')
+            plot(T_ode45, U3_ode45,'--')
+            grid on
+            title('Control Inputs')
+            legend('u1','u2','u3')
+
+            %function declarations
+            function x_dot = ode_eq(~,X1)
+                t1 = 2*asin(X1(4)); %yaw
+                t2 = 2*asin(X1(5)); 
+                t3 = 2*asin(X1(6)); %roll
+                U1(1) = FU1(X1(1), t1);
+                U1(2) = FU2(X1(2), t2);
+                U1(3) = FU3(X1(3), t3);
+                x_dot = system_dynamics(X1, U1, obj.J1, obj.J2, obj.J3);
+                x_dot = x_dot';
+                function X_dot = system_dynamics(X, U, J1, J2, J3)
+                    x1 = X(1);
+                    x2 = X(2);
+                    x3 = X(3);
+                    x4 = X(4);
+                    x5 = X(5);
+                    x6 = X(6);
+                    x7 = X(7);
+                    u1 = U(1);
+                    u2 = U(2);
+                    u3 = U(3);
+                    %J is assumed to be diagonal, J12 = J23 = ... = 0
+                    X_dot(1) = (J2-J3)/J1*x2.*x3 + u1/J1;
+                    X_dot(2) = (J3-J1)/J2*x3.*x1 + u2/J2;
+                    X_dot(3) = (J1-J2)/J3*x1.*x2 + u3/J3;
+                    X_dot(4) = 0.5*(x3.*x5 -x2.*x6 +x1.*x7);
+                    X_dot(5) = 0.5*(-x3.*x4 +x1.*x6 +x2.*x7);
+                    X_dot(6) = 0.5*(x2.*x4 -x1.*x5 +x3.*x7);
+                    X_dot(7) = 0.5*(-x1.*x4 -x2.*x5 -x3.*x6);
+                end
+                
+            end
+        end
+        
         function clear_up(obj)
            % clears up RAM from big matrices that were used in calculations and are no longer needed
            obj.X2_next = [];
