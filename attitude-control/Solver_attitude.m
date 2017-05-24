@@ -121,16 +121,16 @@ classdef Solver_attitude < handle
                 this.Q4 = 6; %quaternions, thetas
                 this.Q5 = 6;
                 this.Q6 = 6;
-                this.R1 = 100;
-                this.R2 = 300;
+                this.R1 = 200;
+                this.R2 = 200;
                 this.R3 = 200;
                 
                 this.Qt1 = this.Q4;
                 this.Qt2 = this.Q5;
                 this.Qt3 = this.Q6;
                 
-                this.T_final = 15;
-                this.h = 0.01;
+                this.T_final = 30;
+                this.h = 0.005;
             end
             this.w_min = w_min;
             this.w_max = w_max;
@@ -822,12 +822,24 @@ classdef Solver_attitude < handle
             FU2 = obj.U2_Opt;
             FU3 = obj.U3_Opt;
             tspan = 0:obj.h:obj.T_final;
-            [T_ode45,X_ode45] = ode45(@ode_eq,tspan,X0);
+            X_ode45 = zeros(obj.N_stage, 7);
+            X_ode45(1,:) = X0;
+            for k_stage=1:obj.N_stage-1
+                %determine U
+                X_stage = X_ode45(k_stage,:);
+                U1(1) = FU1(X_stage(1), 2*asin(X_stage(4)));
+                U1(2) = FU2(X_stage(2), 2*asin(X_stage(5)));
+                U1(3) = FU3(X_stage(3), 2*asin(X_stage(6)));
+                %
+                [~,X_temp] = ode45(@ode_eq,[tspan(k_stage), tspan(k_stage+1)], X_ode45(k_stage,:));
+                X_ode45(k_stage+1,:) = X_temp(end,:);
+            end
             toc
-            
-            theta1_ode45 = 2*asin(X_ode45(:,4));
-            theta2_ode45 = 2*asin(X_ode45(:,5));
-            theta3_ode45 = 2*asin(X_ode45(:,6));
+            T_ode45 = tspan(1:end-1)';
+            [t_yaw,t_pitch,t_roll] = quat2angle([X_ode45(:,7),X_ode45(:,6),X_ode45(:,5),X_ode45(:,4)]);
+            theta1_ode45 = t_yaw;
+            theta2_ode45 = t_pitch;
+            theta3_ode45 = t_roll;
             U1_ode45 = FU1(X_ode45(:,1), theta1_ode45);
             U2_ode45 = FU2(X_ode45(:,2), theta2_ode45);
             U3_ode45 = FU3(X_ode45(:,3), theta3_ode45);
@@ -867,12 +879,7 @@ classdef Solver_attitude < handle
 
             %function declarations
             function x_dot = ode_eq(~,X1)
-                t1 = 2*asin(X1(4)); %yaw
-                t2 = 2*asin(X1(5)); 
-                t3 = 2*asin(X1(6)); %roll
-                U1(1) = FU1(X1(1), t1);
-                U1(2) = FU2(X1(2), t2);
-                U1(3) = FU3(X1(3), t3);
+
                 x_dot = system_dynamics(X1, U1, obj.J1, obj.J2, obj.J3);
                 x_dot = x_dot';
                 function X_dot = system_dynamics(X, U, J1, J2, J3)
