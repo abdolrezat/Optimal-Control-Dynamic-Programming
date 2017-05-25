@@ -103,9 +103,9 @@ classdef Solver_attitude < handle
         function this = Solver_attitude()
             % states are [w1; w2; w3; q1; q2; q3; q4]
             if nargin < 1
-                w_min = -deg2rad(0.9);
-                w_max = -deg2rad(-0.9);
-                n_mesh_w = 100;
+                w_min = -deg2rad(50);
+                w_max = -deg2rad(-50);
+                n_mesh_w = 1000;
                 this.yaw_min = -30; %angles
                 this.yaw_max = 30;
                 this.pitch_min = -20;
@@ -115,14 +115,19 @@ classdef Solver_attitude < handle
                 this.n_mesh_q = 10;
                 this.n_mesh_t = 300; %for simplified dyn
                 
-                this.InertiaM = [2  0   0;...
-                                 0 2.5  0;...
-                                 0  0  3];
+                inertia(1,1) =  0.02836 + 0.00016;
+                inertia(2,1) =  0.026817 + 0.00150;
+                inertia(3,1) =  0.023 + 0.00150;
+                inertia(4,1) = -0.0000837;
+                inertia(5,1) =  0.000014;
+                inertia(6,1) = -0.00029;
+                this.InertiaM = [inertia(1,1)  inertia(4,1)  inertia(5,1);...
+                    inertia(4,1)  inertia(2,1)  inertia(6,1);...
+                    inertia(5,1)  inertia(6,1)  inertia(3,1)];
                     
-                
-                this.Q1 = 1;
-                this.Q2 = 1;
-                this.Q3 = 1;
+                this.Q1 = 6;
+                this.Q2 = 6;
+                this.Q3 = 6;
                 
                 this.Q4 = 6; %quaternions, thetas
                 this.Q5 = 6;
@@ -135,7 +140,7 @@ classdef Solver_attitude < handle
                 this.Qt2 = this.Q5;
                 this.Qt3 = this.Q6;
                 
-                this.T_final = 50;
+                this.T_final = 30;
                 this.h = 0.005;
             end
             this.w_min = w_min;
@@ -149,7 +154,11 @@ classdef Solver_attitude < handle
                 warning('T_final is not a factor of h (dt), increasing T_final to %.2f\n',this.T_final)
             end
             
-            q0 = [0;0;0.0174524064372835;0.999847695156391]; %angle2quat(0,0,roll = deg2rad(2))
+           % q0 = [0;0;0.0174524064372835;0.999847695156391]; %angle2quat(0,0,roll = deg2rad(2))
+           
+           %angle2quat(deg2rad(5),deg2rad(10),deg2rad(-9))
+            q0 = [0.0501511024391496;0.0833950587800888;-0.0818761044636256;0.991880252153991];
+            
             this.defaultX0 = [0;0;0;...
                 ...  %quaternions equal to quat(deg2rad(-10), deg2rad(20), deg2rad(-15))
                 q0];%0.999660006156261;0.00841930262082080;0.0176013597667272;0.0172968080698774];
@@ -162,7 +171,7 @@ classdef Solver_attitude < handle
             this.dim_U1 = 7;
             this.dim_U2 = 8;
             this.dim_U3 = 9;
-            this.U_vector = [-0.01 0 0.01];
+            this.U_vector = [-0.11 0 0.11];
             length_U = length(this.U_vector);
             %Preallocation and mesh generation
             this.sr_1 = linspace(w_min, w_max, n_mesh_w);
@@ -176,10 +185,11 @@ classdef Solver_attitude < handle
             this.size_state_mat = [n_mesh_w,n_mesh_w,n_mesh_w,...
                 this.n_mesh_q,this.n_mesh_q,this.n_mesh_q];
             
+            if(0) %preallocation for system that is not simplified
             this.U1_Opt = zeros([this.size_state_mat],'uint8');
             this.U2_Opt = zeros([this.size_state_mat,length_U],'uint8');
             this.U3_Opt = zeros([this.size_state_mat,length_U,length_U],'uint8');
-            
+            end
         end
         
         %Calculation of optimal matrices
