@@ -48,7 +48,7 @@ classdef Solver_position < handle
                 
                 this.v_min = -10;
                 this.v_max = +10;
-              
+                
                 this.x_min = -15;
                 this.x_max = 15;
                 
@@ -182,6 +182,158 @@ classdef Solver_position < handle
         
         function v_dot = vdynamics(obj,~, U)
             v_dot = U/obj.Mass;
+        end
+        
+        
+        function get_optimal_path(obj)
+            %%
+            global mu
+            mu  = 398600;
+            RE  = 6378;
+            %...Input data:
+            %   Prescribed initial orbital parameters of target A:
+            rp    = RE + 300;
+            e     = 0.1;
+            i     = 0;
+            RA    = 0;
+            omega = 0;
+            theta = 0;
+            %   Additional computed parameters:
+            ra = rp*(1 + e)/(1 - e);
+            h_  = sqrt(2*mu*rp*ra/(ra + rp));
+            a  = (rp + ra)/2;
+            T  = 2*pi/sqrt(mu)*a^1.5;
+            n  = 2*pi/T;
+            
+            %   Prescribed initial state vector of chaser B in the co-moving frame:
+            
+            dr0 = [-1  0  0];
+            dv0 = [ 0 -2*n*dr0(1) 0];
+            y0 = [dr0 dv0]';
+
+            t0  = 0;
+            tf  = 5*T;
+            %...End input data
+            
+            %...Calculate the target's initial state vector using Algorithm 4.5:
+            [R0,V0] = sv_from_coe([h_ e RA i omega theta],mu);
+
+            %%
+            obj.h = .5;
+            N = ceil(tf/obj.h);
+            tspan = 0:obj.h:tf;
+            X_ode45 = zeros(6, N);
+            X_ode45(:,1) = y0;
+            tic
+            for k_stage=1:N-1
+                %determine U from X_stage
+                X_stage = X_ode45(:,k_stage);
+                a_x = 0;
+                a_y = 0;
+                a_z = 0;
+                % variables used in nested differential equation function
+                [R,V] = update_RV_target(obj, R0, V0, tspan(k_stage));
+                norm_R = (R*R')^.5; %norm R
+                RdotV = sum(R.*V); %dot product
+                crossRV = [R(2).*V(3)-R(3).*V(2); % cross product of R and V
+                           R(3).*V(1)-R(1).*V(3); 
+                           R(1).*V(2)-R(2).*V(1)];
+                H  = (crossRV'*crossRV)^.5 ; %norm(crossRV);
+                %
+                [~,X_temp] = rkf45(@rates,[tspan(k_stage), tspan(k_stage+1)], X_ode45(:,k_stage));
+                X_ode45(:,k_stage+1) = X_temp(end,:)';
+            end
+            toc
+            
+            %% plot up
+            hold on
+            plot(X_ode45(2,:), X_ode45(1,:))
+            axis on
+            axis equal
+            axis ([0 40 -5 5])
+            xlabel('y (km)')
+            ylabel('x (km)')
+            grid on
+            box on
+            %...Label the start of B's trajectory relative to A:
+            text(X_ode45(1,2), X_ode45(1,1), 'o')
+            
+            function dydt = rates(t,y)
+                % ~~~~~~~~~~~~~~~~~~~~~~~~
+                %{
+  This function computes the components of f(t,y) in Equation 7.36.
+  
+  t             - time
+  f             - column vector containing the relative position and
+                  velocity vectors of B at time t
+  R, V          - updated state vector of A at time t
+  X, Y, Z       - components of R
+  VX, VY, VZ    - components of V
+  R_            - magnitude of R
+  RdotV         - dot product of R and V
+  h             - magnitude of the specific angular momentum of A
+
+  dx , dy , dz  - components of the relative position vector of B
+  dvx, dvy, dvz - components of the relative velocity vector of B
+  dax, day, daz - components of the relative acceleration vector of B
+  dydt          - column vector containing the relative velocity
+                  and acceleration components of B at time t
+
+  User M-function required: rv_from_r0v0
+                %}
+                % ------------------------
+                %...Update the state vector of the target orbit using Algorithm 3.4:
+                
+%                 X  = R(1); Y  = R(2); Z  = R(3);
+%                 VX = V(1); VY = V(2); VZ = V(3);
+%                 
+  
+                dx  = y(1);
+                dy  = y(2);
+                dz  = y(3);
+                
+                dvx = y(4);
+                dvy = y(5);
+                dvz = y(6);
+                
+                dax   =  (2*mu/norm_R^3 + H^2/norm_R^4)*dx - 2*RdotV/norm_R^4*H*dy + 2*H/norm_R^2*dvy + a_x;
+                day   =   -(mu/norm_R^3 - H^2/norm_R^4)*dy + 2*RdotV/norm_R^4*H*dx - 2*H/norm_R^2*dvx + a_y;
+                daz   = -mu/norm_R^3*dz + a_z;
+                
+                dydt  = [dvx dvy dvz dax day daz]';
+            end %rates
+            
+        end
+        
+        
+        function [R2,V2] = update_RV_target(~,R0,V0,t)
+            %Updates the state vectors of the target sat
+            % mu - gravitational parameter (km^3/s^2)
+            % R0 - initial position vector (km)
+            % V0 - initial velocity vector (km/s)
+            % t - elapsed time (s)
+            % R - final position vector (km)
+            % V - final velocity vector (km/s)
+            global mu
+            %...Magnitudes of R0 and V0:
+            r0 = norm(R0);
+            v0 = norm(V0);
+            %...Initial radial velocity:
+            vr0 = dot(R0, V0)/r0;
+            %...Reciprocal of the semimajor axis (from the energy equation):
+            alpha = 2/r0 - v0^2/mu;
+            %...Compute the universal anomaly:
+            x = kepler_U(t, r0, vr0, alpha);
+            %...Compute the f and g functions:
+            [f, g] = f_and_g(x, t, r0, alpha);
+            %...Compute the final position vector:
+            R2 = f*R0 + g*V0;
+            %...Compute the magnitude of R:
+            r2 = norm(R2);
+            %...Compute the derivatives of f and g:
+            [fdot, gdot] = fDot_and_gDot(x, r2, r0, alpha);
+            %...Compute the final velocity:
+            V2 = fdot*R0 + gdot*V0;
         end
         
     end
