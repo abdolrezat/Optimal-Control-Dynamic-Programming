@@ -217,13 +217,7 @@ classdef Solver_position < handle
                 a_z = obj.U3_Opt(X_stage(3), X_stage(6)); %x3,v3
                 F_Opt_history(:,k_stage) = [a_x;a_y;a_z];
                 % variables used in nested differential equation function
-                [R,V] = update_RV_target(obj, R0, V0, tspan(k_stage));
-                norm_R = (R*R')^.5; %norm R
-                RdotV = sum(R.*V); %dot product
-                crossRV = [R(2).*V(3)-R(3).*V(2); % cross product of R and V
-                    R(3).*V(1)-R(1).*V(3);
-                    R(1).*V(2)-R(2).*V(1)];
-                H  = (crossRV'*crossRV)^.5 ; %norm(crossRV);
+                
                 %
                 [~,X_temp] = rkf45(@rates,[tspan(k_stage), tspan(k_stage+1)], X_ode45(:,k_stage));
                 X_ode45(:,k_stage+1) = X_temp(end,:)';
@@ -291,6 +285,13 @@ classdef Solver_position < handle
                 %                 X  = R(1); Y  = R(2); Z  = R(3);
                 %                 VX = V(1); VY = V(2); VZ = V(3);
                 %
+                [R,V] = update_RV_target(obj, R0, V0, t);
+                norm_R = (R*R')^.5; %norm R
+                RdotV = sum(R.*V); %dot product
+                crossRV = [R(2).*V(3)-R(3).*V(2); % cross product of R and V
+                    R(3).*V(1)-R(1).*V(3);
+                    R(1).*V(2)-R(2).*V(1)];
+                H  = (crossRV'*crossRV)^.5 ; %norm(crossRV);
                 
                 dx  = y(1);
                 dy  = y(2);
