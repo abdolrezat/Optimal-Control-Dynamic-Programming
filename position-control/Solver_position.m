@@ -46,14 +46,14 @@ classdef Solver_position < handle
         function this = Solver_position()
             if nargin < 1
                 
-                this.v_min = -10;
-                this.v_max = +10;
+                this.v_min = -0.5;
+                this.v_max = +0.5;
                 
-                this.x_min = -15;
-                this.x_max = 15;
+                this.x_min = -.5;
+                this.x_max = .5;
                 
-                this.n_mesh_v = 100;
-                this.n_mesh_x = 300;
+                this.n_mesh_v = 200;
+                this.n_mesh_x = 200;
                 
                 this.Mass = 4.16;
                 
@@ -64,9 +64,9 @@ classdef Solver_position < handle
                 this.Qv2 = 6;
                 this.Qv3 = 6;
                 
-                this.R1 = 4;
-                this.R2 = 4;
-                this.R3 = 4;
+                this.R1 = 0.1;
+                this.R2 = 0.1;
+                this.R3 = 0.1;
                 
                 this.T_final = 30;
                 this.h = 0.005;
@@ -81,7 +81,7 @@ classdef Solver_position < handle
             end
             
             this.defaultX0 = [0;0;0;0;0;0]; % [x;v]
-            this.U_vector = [-0.13 0 0.13]; % Thruster Force
+            this.U_vector = [-0.13 0 0.13]*2; % Thruster Force
             
             %u_opt
             size_Umat = [this.n_mesh_x, this.n_mesh_v];
@@ -94,13 +94,14 @@ classdef Solver_position < handle
         function simplified_run(obj)
             
             %% mesh generation
-            s_x1 = linspace(obj.x_min, obj.x_max, obj.n_mesh_x);
-            s_x2 = linspace(obj.x_min, obj.x_max, obj.n_mesh_x);
-            s_x3 = linspace(obj.x_min, obj.x_max, obj.n_mesh_x);
-            
-            s_v1 = linspace(obj.v_min, obj.v_max, obj.n_mesh_v);
-            s_v2 = linspace(obj.v_min, obj.v_max, obj.n_mesh_v);
-            s_v3 = linspace(obj.v_min, obj.v_max, obj.n_mesh_v);
+            s_x1 = sym_linspace(obj, obj.x_min, obj.x_max, obj.n_mesh_x);
+            s_x2 = sym_linspace(obj, obj.x_min, obj.x_max, obj.n_mesh_x);
+            s_x3 = sym_linspace(obj, obj.x_min, obj.x_max, obj.n_mesh_x);
+            obj.n_mesh_x = length(s_x1);
+            s_v1 = sym_linspace(obj, obj.v_min, obj.v_max, obj.n_mesh_v);
+            s_v2 = sym_linspace(obj, obj.v_min, obj.v_max, obj.n_mesh_v);
+            s_v3 = sym_linspace(obj, obj.v_min, obj.v_max, obj.n_mesh_v);
+            obj.n_mesh_v = length(s_v1);
             
             
             %% initialization
@@ -188,56 +189,40 @@ classdef Solver_position < handle
         function get_optimal_path(obj)
             %%
             global mu
-            mu  = 398600;
-            RE  = 6378;
-            %...Input data:
-            %   Prescribed initial orbital parameters of target A:
-            rp    = RE + 300;
-            e     = 0.1;
-            i     = 0;
-            RA    = 0;
-            omega = 0;
-            theta = 0;
-            %   Additional computed parameters:
-            ra = rp*(1 + e)/(1 - e);
-            h_  = sqrt(2*mu*rp*ra/(ra + rp));
-            a  = (rp + ra)/2;
-            T  = 2*pi/sqrt(mu)*a^1.5;
-            n  = 2*pi/T;
+            mu = 398600;
             
             %   Prescribed initial state vector of chaser B in the co-moving frame:
-            
             dr0 = [-1  0  0];
-            dv0 = [ 0 -2*n*dr0(1) 0];
+            dv0 = [ 0 0 0];
             y0 = [dr0 dv0]';
-
-            t0  = 0;
-            tf  = 5*T;
+            
+            tf  = obj.T_final;
             %...End input data
             
             %...Calculate the target's initial state vector using Algorithm 4.5:
-            [R0,V0] = sv_from_coe([h_ e RA i omega theta],mu);
-
+            [R0,V0] = get_target_R0V0(obj);
+            
             %%
-            obj.h = .5;
             N = ceil(tf/obj.h);
             tspan = 0:obj.h:tf;
             X_ode45 = zeros(6, N);
+            F_Opt_history = zeros(3, N);
             X_ode45(:,1) = y0;
             tic
             for k_stage=1:N-1
                 %determine U from X_stage
                 X_stage = X_ode45(:,k_stage);
-                a_x = 0;
-                a_y = 0;
-                a_z = 0;
+                a_x = obj.U1_Opt(X_stage(1), X_stage(4)); %x1,v1
+                a_y = obj.U2_Opt(X_stage(2), X_stage(5)); %x2,v2
+                a_z = obj.U3_Opt(X_stage(3), X_stage(6)); %x3,v3
+                F_Opt_history(:,k_stage) = [a_x;a_y;a_z];
                 % variables used in nested differential equation function
                 [R,V] = update_RV_target(obj, R0, V0, tspan(k_stage));
                 norm_R = (R*R')^.5; %norm R
                 RdotV = sum(R.*V); %dot product
                 crossRV = [R(2).*V(3)-R(3).*V(2); % cross product of R and V
-                           R(3).*V(1)-R(1).*V(3); 
-                           R(1).*V(2)-R(2).*V(1)];
+                    R(3).*V(1)-R(1).*V(3);
+                    R(1).*V(2)-R(2).*V(1)];
                 H  = (crossRV'*crossRV)^.5 ; %norm(crossRV);
                 %
                 [~,X_temp] = rkf45(@rates,[tspan(k_stage), tspan(k_stage+1)], X_ode45(:,k_stage));
@@ -245,18 +230,37 @@ classdef Solver_position < handle
             end
             toc
             
-            %% plot up
+            T_ode45 = tspan(1:end-1)';
+            
+            %plot states x
+            figure
             hold on
-            plot(X_ode45(2,:), X_ode45(1,:))
-            axis on
-            axis equal
-            axis ([0 40 -5 5])
-            xlabel('y (km)')
-            ylabel('x (km)')
             grid on
-            box on
-            %...Label the start of B's trajectory relative to A:
-            text(X_ode45(1,2), X_ode45(1,1), 'o')
+            for i=1:3
+                plot(T_ode45,X_ode45(i,:))
+            end
+            legend('x1','x2','x3')
+            
+            %plot states v
+            figure
+            hold on
+            grid on
+            for i=4:6
+                plot(T_ode45,X_ode45(i,:))
+            end
+            legend('v1','v2','v3')
+            
+            %plot controls
+            figure
+            hold on
+            grid on
+            for i=1:3
+                plot(T_ode45,F_Opt_history(i,:))
+            end
+            legend('u1','u2','u3')
+            
+            
+            
             
             function dydt = rates(t,y)
                 % ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -284,10 +288,10 @@ classdef Solver_position < handle
                 % ------------------------
                 %...Update the state vector of the target orbit using Algorithm 3.4:
                 
-%                 X  = R(1); Y  = R(2); Z  = R(3);
-%                 VX = V(1); VY = V(2); VZ = V(3);
-%                 
-  
+                %                 X  = R(1); Y  = R(2); Z  = R(3);
+                %                 VX = V(1); VY = V(2); VZ = V(3);
+                %
+                
                 dx  = y(1);
                 dy  = y(2);
                 dz  = y(3);
@@ -305,6 +309,25 @@ classdef Solver_position < handle
             
         end
         
+        function [R0,V0] = get_target_R0V0(obj)
+            global mu
+            RE  = 6378;
+            %...Input data:
+            %   Prescribed initial orbital parameters of target A:
+            rp    = RE + 300;
+            e     = 0.1;
+            i     = 0;
+            RA    = 0;
+            omega = 0;
+            theta = 0;
+            %   Additional computed parameters:
+            ra = rp*(1 + e)/(1 - e);
+            h_  = sqrt(2*mu*rp*ra/(ra + rp));
+            a  = (rp + ra)/2;
+            T  = 2*pi/sqrt(mu)*a^1.5;
+            n  = 2*pi/T;
+            [R0,V0] = sv_from_coe([h_ e RA i omega theta],mu);
+        end
         
         function [R2,V2] = update_RV_target(~,R0,V0,t)
             %Updates the state vectors of the target sat
@@ -336,7 +359,21 @@ classdef Solver_position < handle
             V2 = fdot*R0 + gdot*V0;
         end
         
+        function v = sym_linspace(~,a,b,n)
+            if(a>0)
+                error('minimum states are not negative, use normal linspace')
+            end
+            v_1 = linspace(a,0,ceil((n)/2)+1);
+            v_2 = linspace(0,b,ceil((n)/2)+1);
+            v_2 = v_2(2:end); %remove first zero
+            v = [v_1,v_2];
+        end
     end
+    
+    methods(Static)
+        
+    end
+    
 end
 
 
