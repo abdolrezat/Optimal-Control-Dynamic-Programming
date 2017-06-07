@@ -90,7 +90,6 @@ classdef Solver_pos_att < handle
         Opt_F_Thr10
         Opt_F_Thr11
         
-        
     end
     
     methods
@@ -98,26 +97,26 @@ classdef Solver_pos_att < handle
             if nargin < 1
                 
                 %pos
-                this.v_min = -10;
-                this.v_max = +10;
-                this.n_mesh_v = 10;
+                this.v_min = -0.4;
+                this.v_max = +0.5;
+                this.n_mesh_v = 20;
                 
-                this.x_min = -15;
-                this.x_max = 15;
+                this.x_min = -0.1;
+                this.x_max = 0.1;
                 this.n_mesh_x = 10;
                 
                 %att
                 this.w_min = -deg2rad(50);
                 this.w_max = -deg2rad(-50);
-                this.n_mesh_w = 10;
+                this.n_mesh_w = 30;
                 
-                this.theta1_min = -30; %angles of rotation about y-axis (pitch)
-                this.theta1_max = 30;
-                this.theta2_min = -20; %angles of rotation about z-axis (yaw)
-                this.theta2_max = 20;
-                this.theta3_min = -35; %x-axis rotation
-                this.theta3_max = 35;
-                this.n_mesh_t = 15;
+                this.theta1_min = -5; %angles of rotation about y-axis (pitch)
+                this.theta1_max = 5;
+                this.theta2_min = -6; %angles of rotation about z-axis (yaw)
+                this.theta2_max = 6;
+                this.theta3_min = -7; %x-axis rotation
+                this.theta3_max = 7;
+                this.n_mesh_t = 30;
                 %
                 
                 this.Mass = 4.16;
@@ -135,12 +134,12 @@ classdef Solver_pos_att < handle
                 this.J2 = this.InertiaM(5);
                 this.J3 = this.InertiaM(9);
                 
-                this.Qx1 = 6;
-                this.Qx2 = 6;
-                this.Qx3 = 6;
-                this.Qv1 = 6;
-                this.Qv2 = 6;
-                this.Qv3 = 6;
+                this.Qx1 = 60;
+                this.Qx2 = 60;
+                this.Qx3 = 60;
+                this.Qv1 = 60;
+                this.Qv2 = 60;
+                this.Qv3 = 60;
                 
                 this.Qt1 = 6;
                 this.Qt2 = 6;
@@ -153,7 +152,7 @@ classdef Solver_pos_att < handle
                 this.R2 = 4;
                 this.R3 = 4;
                 
-                this.T_final = 30;
+                this.T_final = 20;
                 this.h = 0.005;
             end
             
@@ -266,7 +265,6 @@ classdef Solver_pos_att < handle
                 waitbar( 1 - k_s/obj.N_stage, whandle);
                 fprintf('step %d - %f seconds\n', k_s, toc)
             end
-            keyboard
             
             %get U* Optimal idx
             obj.Opt_F_Thr7 = obj.Opt_F_Thr7(obj.Opt_F_Thr6(obj.Opt_F_Thr1(obj.Opt_F_Thr0)));
@@ -430,7 +428,20 @@ classdef Solver_pos_att < handle
                 f6*obj.T_dist +f7*(-obj.T_dist) )/J;
         end
         
-        function [f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11] = get_thruster_on_off_optimal(~,x,v,t,w)
+        function [f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11] = get_thruster_on_off_optimal(obj,x,v,t,w,R0,V0,q)
+            % gets the optimal on/off state of thrusters, method run() or
+            % simplified_run() must be run before calling this function,
+            % the inputs x,v are position and velocity of object B
+            % to target A in RSW frame
+            
+            %transform vectors to body frame of reference
+            rotM_RSW2ECI = RSW2ECI(obj, R0, V0);
+            rotM_body2ECI = body2ECI(obj,q);
+            
+            x = rotM_body2ECI\(rotM_RSW2ECI* x');
+            v = rotM_body2ECI\(rotM_RSW2ECI* v');
+            
+            %
             t_x = t(1); %rotation about x_axis
             t_y = t(2);
             t_z = t(3);
@@ -439,196 +450,298 @@ classdef Solver_pos_att < handle
             w_y = w(2);
             w_z = w(3);
             
-            f0 = obj.Opt_F_Thr0(x(1),v(1), t_y, w_y );
-            f1 = obj.Opt_F_Thr1(x(1),v(1), t_y, w_y );
-            f6 = obj.Opt_F_Thr6(x(1),v(1), t_y, w_y );
-            f7 = obj.Opt_F_Thr7(x(1),v(1), t_y, w_y );
+            x1 = x(1);
+            x2 = x(2);
+            x3 = x(3);
             
-            f2 = obj.Opt_F_Thr2(x(2),v(2), t_z, w_z );
-            f3 = obj.Opt_F_Thr3(x(2),v(2), t_z, w_z );
-            f8 = obj.Opt_F_Thr8(x(2),v(2), t_z, w_z );
-            f9 = obj.Opt_F_Thr9(x(2),v(2), t_z, w_z );
+            v1 = v(1);
+            v2 = v(2);
+            v3 = v(3);
             
-            f4 = obj.Opt_F_Thr4(x(3),v(3), t_x, w_x );
-            f5 = obj.Opt_F_Thr5(x(3),v(3), t_x, w_x );
-            f10 = obj.Opt_F_Thr10(x(3),v(3), t_x, w_x );
-            f11 = obj.Opt_F_Thr11(x(3),v(3), t_x, w_x );
+            f0 = obj.Opt_F_Thr0(x1,v1, t_y, w_y );
+            f1 = obj.Opt_F_Thr1(x1,v1, t_y, w_y );
+            f6 = obj.Opt_F_Thr6(x1,v1, t_y, w_y );
+            f7 = obj.Opt_F_Thr7(x1,v1, t_y, w_y );
+            
+            f2 = obj.Opt_F_Thr2(x2,v2, t_z, w_z );
+            f3 = obj.Opt_F_Thr3(x2,v2, t_z, w_z );
+            f8 = obj.Opt_F_Thr8(x2,v2, t_z, w_z );
+            f9 = obj.Opt_F_Thr9(x2,v2, t_z, w_z );
+            
+            f4 = obj.Opt_F_Thr4(x3,v3, t_x, w_x );
+            f5 = obj.Opt_F_Thr5(x3,v3, t_x, w_x );
+            f10 = obj.Opt_F_Thr10(x3,v3, t_x, w_x );
+            f11 = obj.Opt_F_Thr11(x3,v3, t_x, w_x );
             
         end
         
         
         function get_optimal_path(obj)
-            X0 = obj.defaultX0;
-            tspan = 0:obj.h:obj.T_final;
-            X_ode45 = zeros(obj.N_stage, 13);
-            X_ode45(1,:) = X0;
-            
-            for k_stage=1:obj.N_stage-1
-                %determine F_Opt each Thruster
-                x = X_ode45(k_stage,1:3);
-                t = [2*asin(X_stage(6));... %angle about x-axis
-                    2*asin(X_stage(5));... %y-axis
-                    2*asin(X_stage(4))]; %z-axis
-                [f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11] = get_thruster_on_off_optimal(obj,x,v,t,w)
-                %
-                [~,X_temp] = ode45(@ode_eq,[tspan(k_stage), tspan(k_stage+1)], X_ode45(k_stage,:));
-                X_ode45(k_stage+1,:) = X_temp(end,:);
+            global mu
+            mu = 398600;
+            if nargin < 2
+%                 X0 = obj.defaultX0;
+                %   Prescribed initial state vector of chaser B in the co-moving frame:
+                dr0 = [-0.04  0  0];
+                dv0 = [0 0 0];
+                q0 = [0 0 0 1];
+                w0 = [0 0 0];
+                X0 = [dr0 dv0 q0 w0]';
+                tf  = obj.T_final;
+                N_total_sim = obj.N_stage;
             end
             
-            %function declarations
-            function x_dot = ode_eq(~,X1)
-                x_dot = system_dynamics(X1);
+            tspan = 0:obj.h:tf;
+            X_ode45 = zeros(N_total_sim, 13);
+            F_Th_Opt = zeros(N_total_sim, 12);
+            Force_Moment_log = zeros(N_total_sim, 6);
+            X_ode45(1,:) = X0;
+            % Calculate the target initial state vector
+            [R0,V0] = get_target_R0V0(obj);
+            
+            for k_stage=1:N_total_sim-1
+                %determine F_Opt each Thruster
+                X_stage = X_ode45(k_stage,:);
+                
+                x_stage = X_stage(1:3);
+                v_stage = X_stage(4:6);
+                t_stage = [2*asin(X_stage(9));... %angle about x-axis
+                    2*asin(X_stage(8));... %y-axis
+                    2*asin(X_stage(7))]; %z-axis
+                w_stage = X_stage(11:13);
+                q_stage = X_stage(7:10);
+                [f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11] = ...
+                    get_thruster_on_off_optimal(obj, x_stage, v_stage, t_stage, w_stage, R0,V0,q_stage);
+
+                % calculate moments (U_M) and directional forces (a_* |x,y,z|)
+                [U_M, a_x, a_y, a_z] = to_Moments_Forces(obj,f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,R0,V0,q_stage);
+                %log
+                F_Th_Opt(k_stage,:) = [f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11];
+                Force_Moment_log(k_stage,:) = [a_x, a_y, a_z, U_M'];
+                %
+                [~,X_temp] = ode45(@ode_eq,[tspan(k_stage), tspan(k_stage+1)], X_stage);
+                X_ode45(k_stage+1,:) = X_temp(end,:);
+            end
+        
+        T_ode45 = tspan(1:end-1)';
+        %plot Thruster Firings
+        ylim_thr = [-.15 .15];
+        figure;
+        title('Thruster Firings')
+        subplot(4,3,1)
+        plot(T_ode45, F_Th_Opt(:,1))
+        title('#0 (x)')
+        grid on
+        ylim(ylim_thr)
+
+        subplot(4,3,2)
+        plot(T_ode45, F_Th_Opt(:,3))
+        title('#2 (y)')    
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,3)
+        plot(T_ode45, F_Th_Opt(:,5))
+        title('#4 (z)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,4)
+        plot(T_ode45, F_Th_Opt(:,2))
+        title('#1 (x)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,5)
+        plot(T_ode45, F_Th_Opt(:,4))
+        title('#3 (y)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,6)
+        plot(T_ode45, F_Th_Opt(:,6))
+        title('#5 (z)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,7)
+        plot(T_ode45, F_Th_Opt(:,7))
+        title('#6 (-x)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,8)
+        plot(T_ode45, F_Th_Opt(:,9))
+        title('#8 (-y)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,9)
+        plot(T_ode45, F_Th_Opt(:,11))
+        title('#10 (-z)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,10)
+        plot(T_ode45, F_Th_Opt(:,8))
+        title('#7 (-x)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,11)
+        plot(T_ode45, F_Th_Opt(:,10))
+        title('#9 (-y)')
+        grid on
+        ylim(ylim_thr)
+        
+        subplot(4,3,12)
+        plot(T_ode45, F_Th_Opt(:,12))
+        title('#11 (-z)')
+        grid on
+        ylim(ylim_thr)
+        
+        %plot Moments
+        ylim_F = [-0.3 0.3]/obj.Mass;
+        ylim_M = [-0.3 0.3]*obj.T_dist;
+        figure;
+        title('Forces and Moments')
+        
+        subplot(3,2,1)
+        plot(T_ode45, Force_Moment_log(:,1))
+        title('acceleration x-direction')
+        grid on
+        ylim(ylim_F)
+        
+        subplot(3,2,3)
+        plot(T_ode45, Force_Moment_log(:,2))
+        title('acceleration y-direction')
+        grid on
+        ylim(ylim_F)
+        
+        subplot(3,2,5)
+        plot(T_ode45, Force_Moment_log(:,3))
+        title('acceleration z-direction')
+        grid on
+        ylim(ylim_F)
+        
+        subplot(3,2,2)
+        plot(T_ode45, Force_Moment_log(:,4))
+        title('Moment x-direction')
+        grid on
+        ylim(ylim_M)
+        
+        subplot(3,2,4)
+        plot(T_ode45, Force_Moment_log(:,5))
+        title('Moment y-direction')
+        grid on
+        ylim(ylim_M)
+        
+        subplot(3,2,6)
+        plot(T_ode45, Force_Moment_log(:,6))
+        title('Moment z-direction')
+        grid on
+        ylim(ylim_M)
+        
+        % plot states - pos
+        figure;
+        title('states - position')
+        plot(T_ode45, X_ode45(:,1))
+        hold on
+        plot(T_ode45, X_ode45(:,2))
+        plot(T_ode45, X_ode45(:,3))
+        grid on
+        legend('x1','x2','x3')
+        
+        % plot states - v
+        figure;
+        title('states - velocity')
+        plot(T_ode45, X_ode45(:,4))
+        hold on
+        plot(T_ode45, X_ode45(:,5))
+        plot(T_ode45, X_ode45(:,6))
+        grid on
+        legend('v1','v2','v3')
+        
+        % plot states - q
+        figure;
+        title('states - quaternions')
+        plot(T_ode45, X_ode45(:,7))
+        hold on
+        plot(T_ode45, X_ode45(:,8))
+        plot(T_ode45, X_ode45(:,9))
+        plot(T_ode45, X_ode45(:,10))
+        grid on
+        legend('q1','q2','q3','q4')
+        
+        % plot states - q
+        figure;
+        title('states - rotational speeds')
+        plot(T_ode45, X_ode45(:,11))
+        hold on
+        plot(T_ode45, X_ode45(:,12))
+        plot(T_ode45, X_ode45(:,13))
+        grid on
+        legend('w1','w2','w3')
+        
+        %function declarations
+            function x_dot = ode_eq(t,X1)
+                x_dot = system_dynamics(t,X1);
                 x_dot = x_dot';
-                function X_dot = system_dynamics(X, U)
+                function X_dot = system_dynamics(t,X)
                     x1 = X(1);
                     x2 = X(2);
                     x3 = X(3);
+                    v1 = X(4);
+                    v2 = X(5);
+                    v3 = X(6);
+                    q1 = X(7);
+                    q2 = X(8);
+                    q3 = X(9);
+                    q4 = X(10);
+                    w1 = X(11);
+                    w2 = X(12);
+                    w3 = X(13);
+                    w_vector = X(11:13);
+                    %--- differential equations -------------------------
+                    % pre-computations
+                    [R,V] = update_RV_target(obj, R0, V0, t);
+                    norm_R = (R*R')^.5; %norm R
+                    RdotV = sum(R.*V); %dot product
+                    crossRV = [R(2).*V(3)-R(3).*V(2); % cross product of R and V
+                        R(3).*V(1)-R(1).*V(3);
+                        R(1).*V(2)-R(2).*V(1)];
+                    H  = (crossRV'*crossRV)^.5 ; %norm(crossRV);
                     
-                    q1 = X(4);
-                    q2 = X(5);
-                    q3 = X(6);
-                    q4 = X(7);
+                    % CW-equations
+                    % position - x
+                    X_dot(1) = v1;
+                    X_dot(2) = v2;
+                    X_dot(3) = v3;
                     
-                    %InertiaM is a complete matrix
-                    w = [x1;x2;x3];
-                    w_dot = obj.InertiaM\(U - cross(w, obj.InertiaM*w));
+                    % position - v (a_x,y,z are in RSW frame of reference)
+                    X_dot(4) =  (2*mu/norm_R^3 + H^2/norm_R^4)*x1 - 2*RdotV/norm_R^4*H*x2 + 2*H/norm_R^2*v2 ...
+                        + a_x;
+                    X_dot(5) = -(mu/norm_R^3 - H^2/norm_R^4)*x2 + 2*RdotV/norm_R^4*H*x1 - 2*H/norm_R^2*v1 ...
+                        + a_y;
+                    X_dot(6) = -mu/norm_R^3*x3 ...
+                        + a_z;
                     
-                    X_dot(1) = w_dot(1);
-                    X_dot(2) = w_dot(2);
-                    X_dot(3) = w_dot(3);
+                    % attitude - q
+                    X_dot(7) = 0.5*(w3.*q2 -w2.*q3 +w1.*q4);
+                    X_dot(8) = 0.5*(-w3.*q1 +w1.*q3 +w2.*q4);
+                    X_dot(9) = 0.5*(w2.*q1 -w1.*q2 +w3.*q4);
+                    X_dot(10) = 0.5*(-w1.*q1 -w2.*q2 -w3.*q3);
                     
-                    X_dot(4) = 0.5*(x3.*q2 -x2.*q3 +x1.*q4);
-                    X_dot(5) = 0.5*(-x3.*q1 +x1.*q3 +x2.*q4);
-                    X_dot(6) = 0.5*(x2.*q1 -x1.*q2 +x3.*q4);
-                    X_dot(7) = 0.5*(-x1.*q1 -x2.*q2 -x3.*q3);
+                    % attitude - w
+                    w_dot = obj.InertiaM\(U_M - cross(w_vector, obj.InertiaM*w_vector));
+                    X_dot(11) = w_dot(1);
+                    X_dot(12) = w_dot(2);
+                    X_dot(13) = w_dot(3);
                 end
             end
         end
         
-        function get_optimal_path_pos(obj)
-            %%
-            global mu
-            mu = 398600;
-            
-            %   Prescribed initial state vector of chaser B in the co-moving frame:
-            dr0 = [-1  0  0];
-            dv0 = [ 0 0 0];
-            y0 = [dr0 dv0]';
-            
-            tf  = obj.T_final;
-            %...End input data
-            
-            %...Calculate the target's initial state vector using Algorithm 4.5:
-            [R0,V0] = get_target_R0V0(obj);
-            
-            %%
-            N = ceil(tf/obj.h);
-            tspan = 0:obj.h:tf;
-            X_ode45 = zeros(6, N);
-            F_Opt_history = zeros(3, N);
-            X_ode45(:,1) = y0;
-            tic
-            for k_stage=1:N-1
-                %determine U from X_stage
-                X_stage = X_ode45(:,k_stage);
-                a_x = obj.U1_Opt(X_stage(1), X_stage(4)); %x1,v1
-                a_y = obj.U2_Opt(X_stage(2), X_stage(5)); %x2,v2
-                a_z = obj.U3_Opt(X_stage(3), X_stage(6)); %x3,v3
-                F_Opt_history(:,k_stage) = [a_x;a_y;a_z];
-                % variables used in nested differential equation function
-                % moved to inside @rates
-                
-                %
-                [~,X_temp] = rkf45(@rates,[tspan(k_stage), tspan(k_stage+1)], X_ode45(:,k_stage));
-                X_ode45(:,k_stage+1) = X_temp(end,:)';
-            end
-            toc
-            
-            T_ode45 = tspan(1:end-1)';
-            
-            %plot states x
-            figure
-            hold on
-            grid on
-            for i=1:3
-                plot(T_ode45,X_ode45(i,:))
-            end
-            legend('x1','x2','x3')
-            
-            %plot states v
-            figure
-            hold on
-            grid on
-            for i=4:6
-                plot(T_ode45,X_ode45(i,:))
-            end
-            legend('v1','v2','v3')
-            
-            %plot controls
-            figure
-            hold on
-            grid on
-            for i=1:3
-                plot(T_ode45,F_Opt_history(i,:))
-            end
-            legend('u1','u2','u3')
-            
-            
-            
-            
-            function dydt = rates(t,y)
-                % ~~~~~~~~~~~~~~~~~~~~~~~~
-                %{
-  This function computes the components of f(t,y) in Equation 7.36.
-  
-  t             - time
-  f             - column vector containing the relative position and
-                  velocity vectors of B at time t
-  R, V          - updated state vector of A at time t
-  X, Y, Z       - components of R
-  VX, VY, VZ    - components of V
-  R_            - magnitude of R
-  RdotV         - dot product of R and V
-  h             - magnitude of the specific angular momentum of A
-
-  dx , dy , dz  - components of the relative position vector of B
-  dvx, dvy, dvz - components of the relative velocity vector of B
-  dax, day, daz - components of the relative acceleration vector of B
-  dydt          - column vector containing the relative velocity
-                  and acceleration components of B at time t
-
-  User M-function required: rv_from_r0v0
-                %}
-                % ------------------------
-                %...Update the state vector of the target orbit using Algorithm 3.4:
-                
-                %                 X  = R(1); Y  = R(2); Z  = R(3);
-                %                 VX = V(1); VY = V(2); VZ = V(3);
-                %
-                [R,V] = update_RV_target(obj, R0, V0, t);
-                norm_R = (R*R')^.5; %norm R
-                RdotV = sum(R.*V); %dot product
-                crossRV = [R(2).*V(3)-R(3).*V(2); % cross product of R and V
-                    R(3).*V(1)-R(1).*V(3);
-                    R(1).*V(2)-R(2).*V(1)];
-                H  = (crossRV'*crossRV)^.5 ; %norm(crossRV);
-                
-                dx  = y(1);
-                dy  = y(2);
-                dz  = y(3);
-                
-                dvx = y(4);
-                dvy = y(5);
-                dvz = y(6);
-                
-                dax   =  (2*mu/norm_R^3 + H^2/norm_R^4)*dx - 2*RdotV/norm_R^4*H*dy + 2*H/norm_R^2*dvy + a_x;
-                day   =   -(mu/norm_R^3 - H^2/norm_R^4)*dy + 2*RdotV/norm_R^4*H*dx - 2*H/norm_R^2*dvx + a_y;
-                daz   = -mu/norm_R^3*dz + a_z;
-                
-                dydt  = [dvx dvy dvz dax day daz]';
-            end %rates
-            
-        end
+   
         
         function [R0,V0] = get_target_R0V0(obj)
             global mu
@@ -692,6 +805,53 @@ classdef Solver_pos_att < handle
             
             J_current_M = (Qx * x.^2 + Qv * v.^2 + Qw * w.^2 + Qt * t.^2 +...
                 ( R* f1.^2 +  R* f2.^2 +  R* f3.^2 +  R* f4.^2)  );
+        end
+        
+        function [U_M, a_x, a_y, a_z] = to_Moments_Forces(obj,f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11,R0,V0,q)
+            % Moments
+            U_M_y = (f0-f1+f6-f7)*obj.T_dist;
+            U_M_z = (f2-f3+f8-f9)*obj.T_dist;
+            U_M_x = (f4-f5+f10-f11)*obj.T_dist;
+            U_M = [U_M_x; U_M_y; U_M_z];
+            
+            % Forces (expressed in body frame of reference)
+            a_x_body = (f0+f1+f6+f7)/obj.Mass;
+            a_y_body = (f2+f3+f8+f9)/obj.Mass;
+            a_z_body = (f4+f5+f10+f11)/obj.Mass;
+            % transform vectors
+            rotM_RSW2ECI = RSW2ECI(obj, R0, V0);
+            rotM_body2ECI = body2ECI(obj,q);
+            rotM_body2RSW = rotM_body2ECI/rotM_RSW2ECI; % = rotM_body2ECI*inv(rotM_RSW2ECI);
+            
+            accM = rotM_body2RSW * [a_x_body a_y_body a_z_body]';
+            a_x = accM(1);
+            a_y = accM(2);
+            a_z = accM(3);
+
+        end
+        
+        function qrotMat = body2ECI(~, q)
+            qrotMat = [1-2*(q(2)^2+q(3)^2), 2*(q(1)*q(2)+q(3)*q(4)), 2*(q(1)*q(3)-q(2)*q(4));...
+                2*(q(2)*q(1)-q(3)*q(4)), 1-2*(q(1)^2+q(3)^2), 2*(q(2)*q(3) +q(1)*q(4));...
+                2*(q(3)*q(1)+q(2)*q(4)), 2*(q(3)*q(2)-q(1)*q(4)), 1-2*(q(1)^2+q(2)^2)];
+        end
+        
+        function rotMat = RSW2ECI(~, pos, vel)
+            % rotMat = RSW2ECI(pos, vel);
+            % Creates a rotation matrix which transforms RSW vectors to ECI vectors.
+            % ECIvec = rotMat  *   RSW;
+            % 3x1    = 3x3         3x1;
+            % Inputs:
+            %   pos:   ECI position vector
+            %   vel:   ECI velocity vector
+            % Outpus:
+            %   rotMat: 3x3 rotation matrix from RSW to ECI
+            
+            R = pos/norm(pos);
+            W = cross(pos,vel)/norm(cross(pos,vel));
+            S = cross(W,R);
+            
+            rotMat = [R' S' W'];
         end
         
         function v = sym_linspace(~,a,b,n)
