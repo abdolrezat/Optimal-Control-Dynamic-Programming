@@ -99,16 +99,16 @@ classdef Solver_pos_att < handle
                 %pos
                 this.v_min = -0.5;
                 this.v_max = +0.5;
-                this.n_mesh_v = 50;
+                this.n_mesh_v = 30;
                 
                 this.x_min = -0.5;
                 this.x_max = 0.5;
-                this.n_mesh_x = 60;
+                this.n_mesh_x = 30;
                 
                 %att
                 this.w_min = -deg2rad(50);
                 this.w_max = -deg2rad(-50);
-                this.n_mesh_w = 60;
+                this.n_mesh_w = 5;
                 
                 this.theta1_min = -5; %angles of rotation about y-axis (pitch)
                 this.theta1_max = 5;
@@ -116,7 +116,7 @@ classdef Solver_pos_att < handle
                 this.theta2_max = 6;
                 this.theta3_min = -7; %x-axis rotation
                 this.theta3_max = 7;
-                this.n_mesh_t = 50;
+                this.n_mesh_t = 5;
                 %
                 
                 this.Mass = 4.16;
@@ -134,12 +134,12 @@ classdef Solver_pos_att < handle
                 this.J2 = this.InertiaM(5);
                 this.J3 = this.InertiaM(9);
                 
-                this.Qx1 = 60;
-                this.Qx2 = 60;
-                this.Qx3 = 60;
-                this.Qv1 = 60;
-                this.Qv2 = 60;
-                this.Qv3 = 60;
+                this.Qx1 = 6;
+                this.Qx2 = 6;
+                this.Qx3 = 6;
+                this.Qv1 = 6;
+                this.Qv2 = 6;
+                this.Qv3 = 6;
                 
                 this.Qt1 = .5;
                 this.Qt2 = .5;
@@ -148,11 +148,11 @@ classdef Solver_pos_att < handle
                 this.Qw2 = .5;
                 this.Qw3 = .5;
                 
-                this.R1 = 4;
-                this.R2 = 4;
-                this.R3 = 4;
+                this.R1 = 0.1;
+                this.R2 = 0.1;
+                this.R3 = 0.1;
                 
-                this.T_final = 30;
+                this.T_final = 10;
                 this.h = 0.005;
             end
             
@@ -216,8 +216,11 @@ classdef Solver_pos_att < handle
             
             %% initialization
             %calculating J fixed
+            [f0_allcomb,f1_allcomb,f6_allcomb,f7_allcomb] = ...
+                get_allcomb_vectors(obj, obj.F_Thr0, obj.F_Thr1, obj.F_Thr6, obj.F_Thr7);
+
             J_current_1 = J_current_reshaped(obj, s_x1,s_v1,s_t1,s_w1,...
-                obj.F_Thr0, obj.F_Thr1, obj.F_Thr6, obj.F_Thr7,...
+                f0_allcomb,  f1_allcomb,  f6_allcomb,  f7_allcomb,...
                 obj.Qx1,obj.Qv1,obj.Qt1,obj.Qw1,obj.R1);
             F1 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
                 zeros(obj.n_mesh_x,obj.n_mesh_v,obj.n_mesh_t,obj.n_mesh_w,'single'),'linear');
@@ -237,7 +240,7 @@ classdef Solver_pos_att < handle
             %calculating next stage states
             %
             [x1_next,v1_next,t1_next,w1_next] = next_stage_states_simplified(obj, s_x1,s_v1,s_t1,s_w1,...
-                obj.F_Thr0, obj.F_Thr1, obj.F_Thr6, obj.F_Thr7, obj.J1);
+                f0_allcomb, f1_allcomb, f6_allcomb, f7_allcomb, obj.J1);
 %             [x2_next,v2_next,t2_next,w2_next] = next_stage_states_simplified(obj, s_x2,s_v2,s_t2,s_w2,...
 %                 obj.F_Thr2, obj.F_Thr3, obj.F_Thr8, obj.F_Thr9, obj.J2);
 %             [x3_next,v3_next,t3_next,w3_next] = next_stage_states_simplified(obj, s_x3,s_v3,s_t3,s_w3,...
@@ -247,10 +250,8 @@ classdef Solver_pos_att < handle
             whandle = waitbar(0,'Calculation in Progress...');
             for k_s = obj.N_stage-1:-1:1
                 tic
-                [val, obj.Opt_F_Thr7] = min( J_current_1 + F1(x1_next,v1_next,t1_next,w1_next), [], 8);
-                [val, obj.Opt_F_Thr6] = min(  val, [], 7);
-                [val, obj.Opt_F_Thr1] = min(  val, [], 6);
-                [F1.Values, obj.Opt_F_Thr0] = min( val, [], 5);
+                [F1.Values, U_Optimal_id] = min( J_current_1 + F1(x1_next,v1_next,t1_next,w1_next), [], 5);
+
 %                 
 %                 [val, obj.Opt_F_Thr9] = min( J_current_2 + F2(x2_next,v2_next,t2_next,w2_next), [], 8);
 %                 [val, obj.Opt_F_Thr8] = min(  val, [], 7);
@@ -336,9 +337,9 @@ classdef Solver_pos_att < handle
             T = reshape(T,[1 1 obj.n_mesh_t]  );
             W = reshape(W,[1 1 1 obj.n_mesh_w]  );
             f1 = reshape(f1,[1 1 1 1 length(f1)]  );
-            f2 = reshape(f2,[1 1 1 1 1 length(f2)]  );
-            f6 = reshape(f6,[1 1 1 1 1 1 length(f6)]  );
-            f7 = reshape(f7,[1 1 1 1 1 1 1 length(f7)]  );
+            f2 = reshape(f2,[1 1 1 1 length(f2)]  );
+            f6 = reshape(f6,[1 1 1 1 length(f6)]  );
+            f7 = reshape(f7,[1 1 1 1 length(f7)]  );
             
             % ODE solve
             x_next = RK4_x(obj, X, V);
@@ -348,21 +349,21 @@ classdef Solver_pos_att < handle
             
 
             %repmat each matrix to full size, as required for F inputs
-            x_next = repmat(x_next,[1 1 obj.n_mesh_t obj.n_mesh_w length(f1) length(f2) length(f6) length(f7)]);
-            v_next = repmat(v_next,[obj.n_mesh_x 1 obj.n_mesh_t obj.n_mesh_w 1 1 1 1]);
-            t_next = repmat(t_next,[obj.n_mesh_x obj.n_mesh_v 1 1 length(f1) length(f2) length(f6) length(f7)]);
-            w_next = repmat(w_next,[obj.n_mesh_x obj.n_mesh_v obj.n_mesh_t 1 1 1 1 1]);    
+            x_next = repmat(x_next,[1 1 obj.n_mesh_t obj.n_mesh_w length(f1)]);
+            v_next = repmat(v_next,[obj.n_mesh_x 1 obj.n_mesh_t obj.n_mesh_w 1]);
+            t_next = repmat(t_next,[obj.n_mesh_x obj.n_mesh_v 1 1 length(f1)]);
+            w_next = repmat(w_next,[obj.n_mesh_x obj.n_mesh_v obj.n_mesh_t 1 1]);    
             end
         
         function X2 = RK4_x(obj, X1, V)
             % Runge-Kutta - 4th order
             % h = dt;
             k1 = xdynamics(obj, V);
-            k2 = xdynamics(obj,(V + k1*obj.h/2));
-            k3 = xdynamics(obj,(V + k2*obj.h/2));
-            k4 = xdynamics(obj,(V + k3*obj.h));
+%             k2 = xdynamics(obj,(V + k1*obj.h/2));
+%             k3 = xdynamics(obj,(V + k2*obj.h/2));
+%             k4 = xdynamics(obj,(V + k3*obj.h));
             
-            X2 = X1 + obj.h*(k1 + 2*k2 + 2*k3 + k4)/6;
+            X2 = X1 + obj.h*k1;
             
         end
         
@@ -374,11 +375,11 @@ classdef Solver_pos_att < handle
             % Runge-Kutta - 4th order
             % h = dt;
             k1 = vdynamics(obj, V1 , f1,f2,f6,f7);
-            k2 = vdynamics(obj,(V1 + k1*obj.h/2), f1,f2,f6,f7);
-            k3 = vdynamics(obj,(V1 + k2*obj.h/2), f1,f2,f6,f7);
-            k4 = vdynamics(obj,(V1 + k3*obj.h), f1,f2,f6,f7);
+%             k2 = vdynamics(obj,(V1 + k1*obj.h/2), f1,f2,f6,f7);
+%             k3 = vdynamics(obj,(V1 + k2*obj.h/2), f1,f2,f6,f7);
+%             k4 = vdynamics(obj,(V1 + k3*obj.h), f1,f2,f6,f7);
             
-            V2 = V1 + obj.h*(k1 + 2*k2 + 2*k3 + k4)/6;
+            V2 = V1 + obj.h*k1;
         end
         
         function v_dot = vdynamics(obj, ~, f1,f2,f6,f7)
@@ -394,11 +395,11 @@ classdef Solver_pos_att < handle
             % Runge-Kutta - 4th order
             % h = dt;
             k1 = tdynamics(obj,W1);
-            k2 = tdynamics(obj,(W1 + k1*obj.h/2));
-            k3 = tdynamics(obj,(W1 + k2*obj.h/2));
-            k4 = tdynamics(obj,(W1 + k3*obj.h));
+%             k2 = tdynamics(obj,(W1 + k1*obj.h/2));
+%             k3 = tdynamics(obj,(W1 + k2*obj.h/2));
+%             k4 = tdynamics(obj,(W1 + k3*obj.h));
             
-            T2 = T1 + obj.h*(k1 + 2*k2 + 2*k3 + k4)/6;
+            T2 = T1 + obj.h*k1;
         end
         
         
@@ -415,11 +416,11 @@ classdef Solver_pos_att < handle
             % Runge-Kutta - 4th order
             % h = dt;
             k1 = wdynamics(obj,w , f1,f2,f6,f7, J);
-            k2 = wdynamics(obj,(w + k1*obj.h/2), f1,f2,f6,f7, J);
-            k3 = wdynamics(obj,(w + k2*obj.h/2), f1,f2,f6,f7, J);
-            k4 = wdynamics(obj,(w + k3*obj.h), f1,f2,f6,f7, J);
+%             k2 = wdynamics(obj,(w + k1*obj.h/2), f1,f2,f6,f7, J);
+%             k3 = wdynamics(obj,(w + k2*obj.h/2), f1,f2,f6,f7, J);
+%             k4 = wdynamics(obj,(w + k3*obj.h), f1,f2,f6,f7, J);
             
-            W2 = w + obj.h*(k1 + 2*k2 + 2*k3 + k4)/6;
+            W2 = w + obj.h*(k1);
         end
         
         
@@ -799,10 +800,10 @@ classdef Solver_pos_att < handle
             t = reshape(t,[1 1 obj.n_mesh_t]  );
             w = reshape(w,[1 1 1 obj.n_mesh_w]  );
             f1 = reshape(f1,[1 1 1 1 length(f1)]  );
-            f2 = reshape(f2,[1 1 1 1 1 length(f2)]  );
-            f3 = reshape(f3,[1 1 1 1 1 1 length(f3)]  );
-            f4 = reshape(f4,[1 1 1 1 1 1 1 length(f4)]  );
-            
+            f2 = reshape(f2,[1 1 1 1 length(f2)]  );
+            f3 = reshape(f3,[1 1 1 1 length(f3)]  );
+            f4 = reshape(f4,[1 1 1 1 length(f4)]  );
+%             
             J_current_M = single(Qx * x.^2 + Qv * v.^2 + Qw * w.^2 + Qt * t.^2 +...
                 ( R* f1.^2 +  R* f2.^2 +  R* f3.^2 +  R* f4.^2)  );
         end
@@ -851,6 +852,14 @@ classdef Solver_pos_att < handle
             S = cross(W,R);
             
             rotMat = [R' S' W'];
+        end
+        
+        function  [f1_a,f2_a,f3_a,f4_a] = get_allcomb_vectors(~,f1,f2,f3,f4)
+            [f1,f2,f3,f4] = ndgrid(f1,f2,f3,f4);
+             f1_a = f1(:); 
+             f2_a = f2(:); 
+             f3_a = f3(:); 
+             f4_a = f4(:); 
         end
         
         function v = sym_linspace(~,a,b,n)
