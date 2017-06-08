@@ -99,11 +99,11 @@ classdef Solver_pos_att < handle
                 %pos
                 this.v_min = -0.5;
                 this.v_max = +0.5;
-                this.n_mesh_v = 30;
+                this.n_mesh_v = 50;
                 
                 this.x_min = -0.5;
                 this.x_max = 0.5;
-                this.n_mesh_x = 30;
+                this.n_mesh_x = 50;
                 
                 %att
                 this.w_min = -deg2rad(50);
@@ -247,6 +247,8 @@ classdef Solver_pos_att < handle
 %                 obj.F_Thr4, obj.F_Thr5, obj.F_Thr10, obj.F_Thr11, obj.J3);
             
             %beginning (reverse) stage calculations
+%             U_Optimal_id = zeros(obj.n_mesh_x,obj.n_mesh_v,obj.n_mesh_t,obj.n_mesh_w,'single');
+            
             whandle = waitbar(0,'Calculation in Progress...');
             for k_s = obj.N_stage-1:-1:1
                 tic
@@ -267,36 +269,41 @@ classdef Solver_pos_att < handle
                 fprintf('step %d - %f seconds\n', k_s, toc)
             end
             
+%             disp(unique(U_Optimal_id)')
             %get U* Optimal idx
-            obj.Opt_F_Thr7 = obj.Opt_F_Thr7(obj.Opt_F_Thr6(obj.Opt_F_Thr1(obj.Opt_F_Thr0)));
-            obj.Opt_F_Thr6 = obj.Opt_F_Thr6(obj.Opt_F_Thr1(obj.Opt_F_Thr0));
-            obj.Opt_F_Thr1 = obj.Opt_F_Thr1(obj.Opt_F_Thr0);
-            obj.Opt_F_Thr0 = obj.Opt_F_Thr0;
+            obj.Opt_F_Thr0 = f0_allcomb(U_Optimal_id);
+            obj.Opt_F_Thr1 = f1_allcomb(U_Optimal_id);
+            obj.Opt_F_Thr6 = f6_allcomb(U_Optimal_id);
+            obj.Opt_F_Thr7 = f7_allcomb(U_Optimal_id);
             
-%             obj.Opt_F_Thr9 = obj.Opt_F_Thr9(obj.Opt_F_Thr8(obj.Opt_F_Thr3(obj.Opt_F_Thr2)));
-%             obj.Opt_F_Thr8 = obj.Opt_F_Thr8(obj.Opt_F_Thr3(obj.Opt_F_Thr2));
-%             obj.Opt_F_Thr3 = obj.Opt_F_Thr3(obj.Opt_F_Thr2);
-%             obj.Opt_F_Thr2 = obj.Opt_F_Thr2;
-%             
-%             obj.Opt_F_Thr11 = obj.Opt_F_Thr11(obj.Opt_F_Thr10(obj.Opt_F_Thr5(obj.Opt_F_Thr4)));
-%             obj.Opt_F_Thr10 = obj.Opt_F_Thr10(obj.Opt_F_Thr5(obj.Opt_F_Thr4));
-%             obj.Opt_F_Thr5 = obj.Opt_F_Thr5(obj.Opt_F_Thr4);
-%             obj.Opt_F_Thr4 = obj.Opt_F_Thr4;
-%             
             %set U* Optimal values
             obj.Opt_F_Thr0 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                obj.F_Thr0(obj.Opt_F_Thr0),...
+                obj.Opt_F_Thr0,...
                 'nearest');
             obj.Opt_F_Thr1 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                obj.F_Thr1(obj.Opt_F_Thr1),...
+                obj.Opt_F_Thr1,...
                 'nearest');
             obj.Opt_F_Thr6 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                obj.F_Thr6(obj.Opt_F_Thr6),...
+                obj.Opt_F_Thr6,...
                 'nearest');
             obj.Opt_F_Thr7 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                obj.F_Thr7(obj.Opt_F_Thr7),...
+                obj.Opt_F_Thr7,...
                 'nearest');
             
+            %copy one channel to two others (TEST)
+            
+            
+            obj.Opt_F_Thr9 = obj.Opt_F_Thr7;
+            obj.Opt_F_Thr8 = obj.Opt_F_Thr6;
+            obj.Opt_F_Thr3 = obj.Opt_F_Thr1;
+            obj.Opt_F_Thr2 = obj.Opt_F_Thr0;
+            
+            obj.Opt_F_Thr11 = obj.Opt_F_Thr7;
+            obj.Opt_F_Thr10 = obj.Opt_F_Thr6;
+            obj.Opt_F_Thr5 = obj.Opt_F_Thr1;
+            obj.Opt_F_Thr4 = obj.Opt_F_Thr0;
+%             
+
 %             
 %             obj.Opt_F_Thr2 = griddedInterpolant({s_x2,s_v2,s_t2,s_w2},...
 %                 obj.F_Thr2(obj.Opt_F_Thr2),...
@@ -483,7 +490,7 @@ classdef Solver_pos_att < handle
             if nargin < 2
 %                 X0 = obj.defaultX0;
                 %   Prescribed initial state vector of chaser B in the co-moving frame:
-                dr0 = [-0.04  0  0];
+                dr0 = [-1  0  0];
                 dv0 = [0 0 0];
                 q0 = [0 0 0 1];
                 w0 = [0 0 0];
@@ -499,7 +506,7 @@ classdef Solver_pos_att < handle
             X_ode45(1,:) = X0;
             % Calculate the target initial state vector
             [R0,V0] = get_target_R0V0(obj);
-            
+            tic
             for k_stage=1:N_total_sim-1
                 %determine F_Opt each Thruster
                 X_stage = X_ode45(k_stage,:);
@@ -523,7 +530,7 @@ classdef Solver_pos_att < handle
                 [~,X_temp] = ode45(@ode_eq,[tspan(k_stage), tspan(k_stage+1)], X_stage);
                 X_ode45(k_stage+1,:) = X_temp(end,:);
             end
-        
+        toc
         T_ode45 = tspan(1:end-1)';
         %plot Thruster Firings
         ylim_thr = [-.15 .15];
