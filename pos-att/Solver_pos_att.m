@@ -97,18 +97,18 @@ classdef Solver_pos_att < handle
             if nargin < 1
                 
                 %pos
-                this.v_min = -0.5;
-                this.v_max = +0.5;
-                this.n_mesh_v = 50;
+                this.v_min = -0.1;
+                this.v_max = +0.1;
+                this.n_mesh_v = 30;
                 
-                this.x_min = -0.5;
-                this.x_max = 0.5;
-                this.n_mesh_x = 50;
+                this.x_min = -0.2;
+                this.x_max = 0.2;
+                this.n_mesh_x = 30;
                 
                 %att
-                this.w_min = -deg2rad(50);
-                this.w_max = -deg2rad(-50);
-                this.n_mesh_w = 5;
+                this.w_min = deg2rad(-2);
+                this.w_max = deg2rad(2);
+                this.n_mesh_w = 15;
                 
                 this.theta1_min = -5; %angles of rotation about y-axis (pitch)
                 this.theta1_max = 5;
@@ -116,7 +116,7 @@ classdef Solver_pos_att < handle
                 this.theta2_max = 6;
                 this.theta3_min = -7; %x-axis rotation
                 this.theta3_max = 7;
-                this.n_mesh_t = 5;
+                this.n_mesh_t = 20;
                 %
                 
                 this.Mass = 4.16;
@@ -214,135 +214,100 @@ classdef Solver_pos_att < handle
             s_w3 = sym_linspace(obj, obj.w_min, obj.w_max, obj.n_mesh_w);
             
             
+            calculate_one_channel_U_Opt(obj, s_x1,s_v1,s_t1,s_w1, ...
+                obj.F_Thr0,obj.F_Thr1,obj.F_Thr6,obj.F_Thr7,...
+                obj.Qx1,obj.Qv1,obj.Qt1,obj.Qw1,obj.R1,...
+                obj.J2,...
+                'channel_x_controller_1');
+            
+            calculate_one_channel_U_Opt(obj, s_x2,s_v2,s_t2,s_w2, ...
+                obj.F_Thr2,obj.F_Thr3,obj.F_Thr8,obj.F_Thr9,...
+                obj.Qx2,obj.Qv2,obj.Qt2,obj.Qw2,obj.R2,...
+                obj.J3,...
+                'channel_y_controller_1');
+            
+            calculate_one_channel_U_Opt(obj, s_x3,s_v3,s_t3,s_w3, ...
+                obj.F_Thr4,obj.F_Thr5,obj.F_Thr10,obj.F_Thr11,...
+                obj.Qx3,obj.Qv3,obj.Qt3,obj.Qw3,obj.R3,...
+                obj.J1,...
+                'channel_z_controller_1');
+            
+            %calculate failure mode in x direction
+            calculate_one_channel_U_Opt(obj, s_x1,s_v1,s_t1,s_w1, ...
+                [0] ,obj.F_Thr1,obj.F_Thr6,obj.F_Thr7,...
+                obj.Qx1,obj.Qv1,obj.Qt1,obj.Qw1,obj.R1,...
+                obj.J2,...
+                'channel_x_controller_1_failure');
+            
+        end
+        
+        function calculate_one_channel_U_Opt(obj, s_x,s_v,s_t,s_w, ...
+                f0, f1, f6, f7,Qx,Qv,Qt,Qw,R,J,file_name)
+            
+            n_x = length(s_x);
+            n_v = length(s_v);
+            n_t = length(s_t);
+            n_w = length(s_w);
+            
             %% initialization
-            %calculating J fixed
             [f0_allcomb,f1_allcomb,f6_allcomb,f7_allcomb] = ...
-                get_allcomb_vectors(obj, obj.F_Thr0, obj.F_Thr1, obj.F_Thr6, obj.F_Thr7);
-
-            J_current_1 = J_current_reshaped(obj, s_x1,s_v1,s_t1,s_w1,...
-                f0_allcomb,  f1_allcomb,  f6_allcomb,  f7_allcomb,...
-                obj.Qx1,obj.Qv1,obj.Qt1,obj.Qw1,obj.R1);
-            F1 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                zeros(obj.n_mesh_x,obj.n_mesh_v,obj.n_mesh_t,obj.n_mesh_w,'single'),'linear');
-            
-%             J_current_2 = J_current_reshaped(obj, s_x2,s_v2,s_t2,s_w2,...
-%                 obj.F_Thr2, obj.F_Thr3, obj.F_Thr8, obj.F_Thr9,...
-%                 obj.Qx2,obj.Qv2,obj.Qt2,obj.Qw2,obj.R2);
-%             F2 = griddedInterpolant({s_x2,s_v2,s_t2,s_w2},...
-%                 zeros(obj.n_mesh_x,obj.n_mesh_v,obj.n_mesh_t,obj.n_mesh_w,'single'),'linear');
-%             
-%             J_current_3 = J_current_reshaped(obj, s_x3,s_v3,s_t3,s_w3,...
-%                 obj.F_Thr4, obj.F_Thr5, obj.F_Thr10, obj.F_Thr11,...
-%                 obj.Qx3,obj.Qv3,obj.Qt3,obj.Qw3,obj.R3);
-%             F3 = griddedInterpolant({s_x3,s_v3,s_t3,s_w3},...
-%                 zeros(obj.n_mesh_x,obj.n_mesh_v,obj.n_mesh_t,obj.n_mesh_w,'single'),'linear');
-            
+                vectors_allcomb(obj, f0, f1, f6, f7);
             %calculating next stage states
-            %
-            [x1_next,v1_next,t1_next,w1_next] = next_stage_states_simplified(obj, s_x1,s_v1,s_t1,s_w1,...
-                f0_allcomb, f1_allcomb, f6_allcomb, f7_allcomb, obj.J1);
-%             [x2_next,v2_next,t2_next,w2_next] = next_stage_states_simplified(obj, s_x2,s_v2,s_t2,s_w2,...
-%                 obj.F_Thr2, obj.F_Thr3, obj.F_Thr8, obj.F_Thr9, obj.J2);
-%             [x3_next,v3_next,t3_next,w3_next] = next_stage_states_simplified(obj, s_x3,s_v3,s_t3,s_w3,...
-%                 obj.F_Thr4, obj.F_Thr5, obj.F_Thr10, obj.F_Thr11, obj.J3);
+            %% J input to the next states must be in accordance with the Moment direction
+            [x_next,v_next,t_next,w_next] = next_stage_states_simplified(obj, s_x,s_v,s_t,s_w,...
+                f0_allcomb, f1_allcomb, f6_allcomb, f7_allcomb, J); 
             
-            %beginning (reverse) stage calculations
-%             U_Optimal_id = zeros(obj.n_mesh_x,obj.n_mesh_v,obj.n_mesh_t,obj.n_mesh_w,'single');
-            
-            whandle = waitbar(0,'Calculation in Progress...');
+            %calculating J fixed
+            J_current = J_current_reshaped(obj, s_x,s_v,s_t,s_w,...
+                f0_allcomb,  f1_allcomb,  f6_allcomb,  f7_allcomb,...
+                Qx,Qv,Qt,Qw,R);
+            F_gI = griddedInterpolant({s_x,s_v,s_t,s_w},...
+                zeros(n_x,n_v,n_t,n_w,'single'),'linear');
+          
+
+            fsum50_prev = 0;
+            tol = 1e-2;
             for k_s = obj.N_stage-1:-1:1
                 tic
-                [F1.Values, U_Optimal_id] = min( J_current_1 + F1(x1_next,v1_next,t1_next,w1_next), [], 5);
-
-%                 
-%                 [val, obj.Opt_F_Thr9] = min( J_current_2 + F2(x2_next,v2_next,t2_next,w2_next), [], 8);
-%                 [val, obj.Opt_F_Thr8] = min(  val, [], 7);
-%                 [val, obj.Opt_F_Thr3] = min(  val, [], 6);
-%                 [F2.Values, obj.Opt_F_Thr2] = min( val, [], 5);
-%                 
-%                 [val, obj.Opt_F_Thr11] = min( J_current_3 + F3(x3_next,v3_next,t3_next,w3_next), [], 8);
-%                 [val, obj.Opt_F_Thr10] = min(  val, [], 7);
-%                 [val, obj.Opt_F_Thr5] = min(  val, [], 6);
-%                 [F3.Values, obj.Opt_F_Thr4] = min( val, [], 5);
-                
-                waitbar( 1 - k_s/obj.N_stage, whandle);
-                fprintf('step %d - %f seconds\n', k_s, toc)
+                [F_gI.Values, U_Optimal_id] = min( J_current + F_gI(x_next,v_next,t_next,w_next), [], 5);
+                if ~rem(k_s,50)
+                    fsum50 = sum(F_gI.Values(:));
+                    idsum50 = sum(U_Optimal_id(:));
+                    e = fsum50 - fsum50_prev;
+                    e2 = idsum50 - idsum50_prev;
+                    fprintf('stage %d - %f seconds - errorF %f - errorU %f\n', k_s, toc, e, e2)
+                    fsum50_prev = fsum50;
+                    idsum50_prev = idsum50;
+                    if(abs(e) < tol)
+                        fprintf('sum of errors in the last 50 stages is under tolerance, breaking loop...\n')
+                        break
+                    end
+                end
             end
             
-%             disp(unique(U_Optimal_id)')
-            %get U* Optimal idx
-            obj.Opt_F_Thr0 = f0_allcomb(U_Optimal_id);
-            obj.Opt_F_Thr1 = f1_allcomb(U_Optimal_id);
-            obj.Opt_F_Thr6 = f6_allcomb(U_Optimal_id);
-            obj.Opt_F_Thr7 = f7_allcomb(U_Optimal_id);
-            
-            %set U* Optimal values
-            obj.Opt_F_Thr0 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                obj.Opt_F_Thr0,...
-                'nearest');
-            obj.Opt_F_Thr1 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                obj.Opt_F_Thr1,...
-                'nearest');
-            obj.Opt_F_Thr6 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                obj.Opt_F_Thr6,...
-                'nearest');
-            obj.Opt_F_Thr7 = griddedInterpolant({s_x1,s_v1,s_t1,s_w1},...
-                obj.Opt_F_Thr7,...
-                'nearest');
-            
-            %copy one channel to two others (TEST)
-            
-            
-            obj.Opt_F_Thr9 = obj.Opt_F_Thr7;
-            obj.Opt_F_Thr8 = obj.Opt_F_Thr6;
-            obj.Opt_F_Thr3 = obj.Opt_F_Thr1;
-            obj.Opt_F_Thr2 = obj.Opt_F_Thr0;
-            
-            obj.Opt_F_Thr11 = obj.Opt_F_Thr7;
-            obj.Opt_F_Thr10 = obj.Opt_F_Thr6;
-            obj.Opt_F_Thr5 = obj.Opt_F_Thr1;
-            obj.Opt_F_Thr4 = obj.Opt_F_Thr0;
-%             
-
-%             
-%             obj.Opt_F_Thr2 = griddedInterpolant({s_x2,s_v2,s_t2,s_w2},...
-%                 obj.F_Thr2(obj.Opt_F_Thr2),...
-%                 'nearest');
-%             obj.Opt_F_Thr3 = griddedInterpolant({s_x2,s_v2,s_t2,s_w2},...
-%                 obj.F_Thr3(obj.Opt_F_Thr3),...
-%                 'nearest');
-%             obj.Opt_F_Thr8 = griddedInterpolant({s_x2,s_v2,s_t2,s_w2},...
-%                 obj.F_Thr8(obj.Opt_F_Thr8),...
-%                 'nearest');
-%             obj.Opt_F_Thr9 = griddedInterpolant({s_x2,s_v2,s_t2,s_w2},...
-%                 obj.F_Thr9(obj.Opt_F_Thr9),...
-%                 'nearest');
-%             
-%             obj.Opt_F_Thr4 = griddedInterpolant({s_x3,s_v3,s_t3,s_w3},...
-%                 obj.F_Thr4(obj.Opt_F_Thr4),...
-%                 'nearest');
-%             obj.Opt_F_Thr5 = griddedInterpolant({s_x3,s_v3,s_t3,s_w3},...
-%                 obj.F_Thr5(obj.Opt_F_Thr5),...
-%                 'nearest');
-%             obj.Opt_F_Thr10 = griddedInterpolant({s_x3,s_v3,s_t3,s_w3},...
-%                 obj.F_Thr10(obj.Opt_F_Thr10),...
-%                 'nearest');
-%             obj.Opt_F_Thr11 = griddedInterpolant({s_x3,s_v3,s_t3,s_w3},...
-%                 obj.F_Thr11(obj.Opt_F_Thr11),...
-%                 'nearest');
-%             
+            clear('x_next','v_next','t_next','w_next','J_current')
+            save(file_name,'F_gI','U_Optimal_id','f0_allcomb','f1_allcomb','f6_allcomb','f7_allcomb')
+%             obj.Opt_F_Thr0 = f0_allcomb(U_Optimal_id);
+%             obj.Opt_F_Thr1 = f1_allcomb(U_Optimal_id);
+%             obj.Opt_F_Thr6 = f6_allcomb(U_Optimal_id);
+%             obj.Opt_F_Thr7 = f7_allcomb(U_Optimal_id);
             %finish up
-            close(whandle)
-            fprintf('stage calculations complete.\n')
+            fprintf('\nstage calculations complete.\n')
             
         end
         
         function [x_next,v_next,t_next,w_next] = next_stage_states_simplified(obj, X, V, T, W, f1,f2,f6,f7 ,J)
+            %store length
+            L_x = length(X);
+            L_v = length(V);
+            L_t = length(T);
+            L_w = length(W);
+            
             % reshape
-            X = reshape(X,[obj.n_mesh_x 1]  );
-            V = reshape(V,[1 obj.n_mesh_v]  );
-            T = reshape(T,[1 1 obj.n_mesh_t]  );
-            W = reshape(W,[1 1 1 obj.n_mesh_w]  );
+            X = reshape(X,[L_x 1]  );
+            V = reshape(V,[1 L_v]  );
+            T = reshape(T,[1 1 L_t]  );
+            W = reshape(W,[1 1 1 L_w]  );
             f1 = reshape(f1,[1 1 1 1 length(f1)]  );
             f2 = reshape(f2,[1 1 1 1 length(f2)]  );
             f6 = reshape(f6,[1 1 1 1 length(f6)]  );
@@ -356,10 +321,10 @@ classdef Solver_pos_att < handle
             
 
             %repmat each matrix to full size, as required for F inputs
-            x_next = repmat(x_next,[1 1 obj.n_mesh_t obj.n_mesh_w length(f1)]);
-            v_next = repmat(v_next,[obj.n_mesh_x 1 obj.n_mesh_t obj.n_mesh_w 1]);
-            t_next = repmat(t_next,[obj.n_mesh_x obj.n_mesh_v 1 1 length(f1)]);
-            w_next = repmat(w_next,[obj.n_mesh_x obj.n_mesh_v obj.n_mesh_t 1 1]);    
+            x_next = repmat(x_next,[1 1 L_t L_w length(f1)]);
+            v_next = repmat(v_next,[L_x 1 L_t L_w 1]);
+            t_next = repmat(t_next,[L_x L_v 1 1 length(f1)]);
+            w_next = repmat(w_next,[L_x L_v L_t 1 1]);    
             end
         
         function X2 = RK4_x(obj, X1, V)
@@ -490,15 +455,24 @@ classdef Solver_pos_att < handle
             if nargin < 2
 %                 X0 = obj.defaultX0;
                 %   Prescribed initial state vector of chaser B in the co-moving frame:
-                dr0 = [-1  0  0];
+                dr0 = [-0.1  0  0];
                 dv0 = [0 0 0];
-                q0 = [0 0 0 1];
+                
+%                 q0 = [0 0 0 1];
+                q0 = angle2quat(deg2rad(0),deg2rad(3),deg2rad(0));
+                q0 = q0(end:-1:1);
+                
                 w0 = [0 0 0];
                 X0 = [dr0 dv0 q0 w0]';
                 tf  = obj.T_final;
                 N_total_sim = obj.N_stage;
             end
-            
+            %% set controllers
+            obj.set_controller('channel_x_controller_1.mat','x')
+            obj.set_controller('channel_y_controller_1.mat','y')
+            obj.set_controller('channel_z_controller_1.mat','z')
+
+            %%
             tspan = 0:obj.h:tf;
             X_ode45 = zeros(N_total_sim, 13);
             F_Th_Opt = zeros(N_total_sim, 12);
@@ -513,9 +487,9 @@ classdef Solver_pos_att < handle
                 
                 x_stage = X_stage(1:3);
                 v_stage = X_stage(4:6);
-                t_stage = [2*asin(X_stage(9));... %angle about x-axis
+                t_stage = [2*asin(X_stage(7));... %angle about x-axis
                     2*asin(X_stage(8));... %y-axis
-                    2*asin(X_stage(7))]; %z-axis
+                    2*asin(X_stage(9))]; %z-axis
                 w_stage = X_stage(11:13);
                 q_stage = X_stage(7:10);
                 [f0,f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f11] = ...
@@ -534,14 +508,15 @@ classdef Solver_pos_att < handle
         T_ode45 = tspan(1:end-1)';
         %plot Thruster Firings
         ylim_thr = [-.15 .15];
-        figure;
-        title('Thruster Firings')
+        pos_fig_thruster = [7.4000   61.8000  538.4000  712.8000];
+        figure('Name','Thruster Firings','Position',pos_fig_thruster)
         subplot(4,3,1)
         plot(T_ode45, F_Th_Opt(:,1))
         title('#0 (x)')
         grid on
         ylim(ylim_thr)
-
+        %% xlim([-0.05 Inf])
+        
         subplot(4,3,2)
         plot(T_ode45, F_Th_Opt(:,3))
         title('#2 (y)')    
@@ -611,8 +586,8 @@ classdef Solver_pos_att < handle
         %plot Moments
         ylim_F = [-0.3 0.3]/obj.Mass;
         ylim_M = [-0.3 0.3]*obj.T_dist;
-        figure;
-        title('Forces and Moments')
+        pos_fig_FM = [547.4000  449.8000  518.4000  326.4000];
+        figure('Name','Forces and Moments','Position',pos_fig_FM)
         
         subplot(3,2,1)
         plot(T_ode45, Force_Moment_log(:,1))
@@ -651,8 +626,9 @@ classdef Solver_pos_att < handle
         ylim(ylim_M)
         
         % plot states - pos
-        figure;
-        title('states - position')
+        pos_fig_x = [543.4000   49.0000  518.4000  326.4000];
+        figure('Name','states - position','Position',pos_fig_x)
+        
         plot(T_ode45, X_ode45(:,1))
         hold on
         plot(T_ode45, X_ode45(:,2))
@@ -661,8 +637,9 @@ classdef Solver_pos_att < handle
         legend('x1','x2','x3')
         
         % plot states - v
-        figure;
-        title('states - velocity')
+        pos_fig_v = [954.6000  446.6000  518.4000  326.4000];
+        figure('Name','states - velocity','Position',pos_fig_v)
+        
         plot(T_ode45, X_ode45(:,4))
         hold on
         plot(T_ode45, X_ode45(:,5))
@@ -671,8 +648,9 @@ classdef Solver_pos_att < handle
         legend('v1','v2','v3')
         
         % plot states - q
-        figure;
-        title('states - quaternions')
+        pos_fig_q = [973.0000  218.6000  518.4000  326.4000];
+        figure('Name','states - quaternions','Position',pos_fig_q)
+        
         plot(T_ode45, X_ode45(:,7))
         hold on
         plot(T_ode45, X_ode45(:,8))
@@ -681,8 +659,10 @@ classdef Solver_pos_att < handle
         grid on
         legend('q1','q2','q3','q4')
         
-        % plot states - q
-        figure;
+        % plot states - w
+        pos_fig_w = [956.2000   47.4000  518.4000  326.4000];
+        figure('Name','states - rotational speeds','Position',pos_fig_w)
+        
         title('states - rotational speeds')
         plot(T_ode45, X_ode45(:,11))
         hold on
@@ -801,11 +781,17 @@ classdef Solver_pos_att < handle
             V2 = fdot*R0 + gdot*V0;
         end
         
-        function J_current_M = J_current_reshaped(obj,x,v,t,w,f1,f2,f3,f4,Qx,Qv,Qt,Qw,R)
-            x = reshape(x,[obj.n_mesh_x 1]  );
-            v = reshape(v,[1 obj.n_mesh_v]  );
-            t = reshape(t,[1 1 obj.n_mesh_t]  );
-            w = reshape(w,[1 1 1 obj.n_mesh_w]  );
+        function J_current_M = J_current_reshaped(~,x,v,t,w,f1,f2,f3,f4,Qx,Qv,Qt,Qw,R)
+            
+            L_x = length(x);
+            L_v = length(v);
+            L_t = length(t);
+            L_w = length(w);
+            
+            x = reshape(x,[L_x 1]  );
+            v = reshape(v,[1 L_v]  );
+            t = reshape(t,[1 1 L_t]  );
+            w = reshape(w,[1 1 1 L_w]  );
             f1 = reshape(f1,[1 1 1 1 length(f1)]  );
             f2 = reshape(f2,[1 1 1 1 length(f2)]  );
             f3 = reshape(f3,[1 1 1 1 length(f3)]  );
@@ -830,11 +816,10 @@ classdef Solver_pos_att < handle
             rotM_RSW2ECI = RSW2ECI(obj, R0, V0);
             rotM_ECI2body = ECI2body(obj,q);
             
-            accM =  rotM_RSW2ECI\(rotM_ECI2body\[a_x_body a_y_body a_z_body]');
+            accM = rotM_RSW2ECI\(rotM_ECI2body\[a_x_body a_y_body a_z_body]');
             a_x = accM(1);
             a_y = accM(2);
             a_z = accM(3);
-
         end
         
         function qrotMat = ECI2body(~, q)
@@ -861,12 +846,61 @@ classdef Solver_pos_att < handle
             rotMat = [R' S' W'];
         end
         
-        function  [f1_a,f2_a,f3_a,f4_a] = get_allcomb_vectors(~,f1,f2,f3,f4)
+        function set_controller(obj, file, channel)
+            C = load(file);
+            fgI0 = griddedInterpolant(C.F_gI.GridVectors,...
+                C.f0_allcomb(C.U_Optimal_id),'nearest');
+            
+            fgI1 = griddedInterpolant(C.F_gI.GridVectors,...
+                C.f1_allcomb(C.U_Optimal_id),'nearest');
+            
+            fgI6 = griddedInterpolant(C.F_gI.GridVectors,...
+                C.f6_allcomb(C.U_Optimal_id),'nearest');
+            
+            fgI7 = griddedInterpolant(C.F_gI.GridVectors,...
+                C.f7_allcomb(C.U_Optimal_id),'nearest');
+            
+            switch channel
+                case 'x'
+                    obj.Opt_F_Thr0 = fgI0;
+                    obj.Opt_F_Thr1 = fgI1;
+                    obj.Opt_F_Thr6 = fgI6;
+                    obj.Opt_F_Thr7 = fgI7;
+                case 'y'
+                    obj.Opt_F_Thr2 = fgI0;
+                    obj.Opt_F_Thr3 = fgI1;
+                    obj.Opt_F_Thr8 = fgI6;
+                    obj.Opt_F_Thr9 = fgI7;
+                case 'z'
+                    obj.Opt_F_Thr4 = fgI0;
+                    obj.Opt_F_Thr5 = fgI1;
+                    obj.Opt_F_Thr10 = fgI6;
+                    obj.Opt_F_Thr11 = fgI7;
+                    
+                otherwise
+                    error('wrong channel, must be one of x-y-z values')
+            end
+            
+        end
+        
+        function  [f1_a,f2_a,f3_a,f4_a] = vectors_allcomb(~,f1,f2,f3,f4)
             [f1,f2,f3,f4] = ndgrid(f1,f2,f3,f4);
-             f1_a = f1(:); 
-             f2_a = f2(:); 
-             f3_a = f3(:); 
-             f4_a = f4(:); 
+             f1 = f1(:); 
+             f2 = f2(:); 
+             f3 = f3(:); 
+             f4 = f4(:); 
+             
+             idrm1 = find( f1 >0 & f3< 0 );
+             idrm2 = find( f2 > 0 & f4 < 0);
+             
+             idrm = unique([idrm1,idrm2])';
+             id = setdiff(1:length(f1),idrm);
+             
+             f1_a = f1(id); 
+             f2_a = f2(id); 
+             f3_a = f3(id); 
+             f4_a = f4(id); 
+             
         end
         
         function v = sym_linspace(~,a,b,n)
